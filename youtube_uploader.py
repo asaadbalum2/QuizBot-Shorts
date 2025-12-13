@@ -203,6 +203,13 @@ def upload_video(
     print(f"   Video ID: {video_id}")
     print(f"   URL: {video_url}")
     
+    # Log the upload
+    try:
+        from content_log import log_upload
+        log_upload(video_id, video_url, title)
+    except Exception as e:
+        print(f"   (Logging skipped: {e})")
+    
     return {
         'id': video_id,
         'url': video_url,
