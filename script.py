@@ -11,6 +11,20 @@ import random
 import sys
 from pathlib import Path
 
+# Configure ImageMagick for Windows before importing moviepy
+if sys.platform == "win32":
+    import shutil
+    # Try to find ImageMagick
+    magick_paths = [
+        r"C:\Program Files\ImageMagick-7.1.2-Q16-HDRI\magick.exe",
+        r"C:\Program Files\ImageMagick-7.1.1-Q16-HDRI\magick.exe",
+        shutil.which("magick"),
+    ]
+    for path in magick_paths:
+        if path and os.path.exists(path):
+            os.environ["IMAGEMAGICK_BINARY"] = path
+            break
+
 import edge_tts
 from moviepy.editor import (
     VideoFileClip,
@@ -358,7 +372,7 @@ async def generate_video(question: dict, output_filename: str = None):
         "RESULTS!",
         fontsize=80,
         font="Arial-Bold",
-        color=(255, 215, 0),  # Gold
+        color='gold',
         stroke_color='black',
         stroke_width=3
     )
