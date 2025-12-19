@@ -11,6 +11,11 @@ import random
 import sys
 from pathlib import Path
 
+# Fix Pillow 10+ compatibility (ANTIALIAS was removed)
+from PIL import Image
+if not hasattr(Image, 'ANTIALIAS'):
+    Image.ANTIALIAS = Image.Resampling.LANCZOS
+
 # Configure ImageMagick for Windows before importing moviepy
 if sys.platform == "win32":
     import shutil
