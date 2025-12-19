@@ -77,12 +77,13 @@ VIDEO_FPS = 30  # Smoother playback
 TARGET_DURATION = 45  # Optimal for Shorts engagement
 
 # Voice settings - ENGAGING, energetic voices for viral content
+# ENGAGING voices - prioritize expressive, energetic ones
 VOICES = [
-    "en-US-ChristopherNeural",  # Confident, clear male
-    "en-US-JennyNeural",        # Friendly, upbeat female
-    "en-US-AriaNeural",         # Expressive, dramatic female
-    "en-US-GuyNeural",          # Casual, relatable male
-    "en-US-SaraNeural",         # Warm, engaging female
+    "en-US-AriaNeural",         # Most expressive, dramatic female - BEST!
+    "en-US-DavisNeural",        # Energetic, dynamic male 
+    "en-US-JaneNeural",         # Enthusiastic, engaging female
+    "en-US-JasonNeural",        # Excited, upbeat male
+    "en-US-TonyNeural",         # High-energy male
 ]
 
 # Voice styles for more personality
@@ -718,17 +719,26 @@ async def generate_voiceover_v2(text: str, output_path: str,
     last_error = None
     
     # Try different voices if one fails (Edge-TTS rate limiting)
-    voices_to_try = [voice] + [v for v in VOICES if v != voice][:2]
+    voices_to_try = [voice] + [v for v in VOICES if v != voice][:3]
     
     for voice_attempt in voices_to_try:
         for attempt in range(retries):
             try:
-                # Simpler settings - avoid rate limits
-                rate = "+0%" if attempt > 1 else "-3%"  # Use default on retries
-                pitch = "+0Hz" if attempt > 1 else "+5Hz"  # Use default on retries
+                # ENGAGING settings - faster pace, higher energy
+                # First attempts: use energetic settings
+                # Later attempts: fall back to defaults for reliability
+                if attempt == 0:
+                    rate = "+15%"  # Faster, more energetic!
+                    pitch = "+8Hz"  # Slightly higher, more excited
+                elif attempt == 1:
+                    rate = "+10%"
+                    pitch = "+5Hz"
+                else:
+                    rate = "+0%"
+                    pitch = "+0Hz"
                 
-                # Create communicate object - use minimal params on retries
-                if attempt <= 1:
+                # Create communicate object
+                if attempt <= 2:
                     communicate = edge_tts.Communicate(
                         text, 
                         voice_attempt,
@@ -852,12 +862,14 @@ async def generate_video_v2(question: dict, output_filename: str = None) -> str:
     hook = random.choice(hooks)
     
     # Short voiceover (Edge-TTS has length limits)
+    # ENGAGING voiceover scripts - energetic, hook-driven
     voiceover_templates = [
-        f"Would you rather... {option_a}... OR... {option_b}? Comment your choice!",
-        f"This is impossible! Would you rather... {option_a}... OR... {option_b}?",
-        f"Choose wisely! Would you rather... {option_a}... OR... {option_b}?",
-        f"Here's a tough one. Would you rather... {option_a}... OR... {option_b}?",
-        f"No one can agree! Would you rather... {option_a}... OR... {option_b}?",
+        f"Okay, this is CRAZY! Would you rather {option_a}... ORRR {option_b}? Drop your answer NOW!",
+        f"Wait wait wait... Would you rather {option_a}... or {option_b}? This is IMPOSSIBLE!",
+        f"Only 1 percent get this right! Would you rather {option_a}... or {option_b}?",
+        f"You HAVE to pick one! Would you rather {option_a}... or {option_b}? Comment below!",
+        f"This one is INSANE! Would you rather {option_a}... or {option_b}? Most people can't decide!",
+        f"Let's settle this debate! Would you rather {option_a}... or {option_b}? Vote in comments!",
     ]
     
     voiceover_text = random.choice(voiceover_templates)
