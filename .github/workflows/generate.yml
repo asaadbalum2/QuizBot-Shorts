@@ -82,22 +82,67 @@ jobs:
           mkdir -p assets/backgrounds assets/broll assets/music assets/sfx assets/fonts
           mkdir -p output cache
 
-      - name: Download sample background videos
+      - name: Fetch B-roll via Pexels API
         run: |
-          echo "📥 Downloading background videos..."
+          echo "📥 Fetching B-roll videos via Pexels API..."
           
-          # Multiple fallback URLs for background videos
-          curl -L -o assets/backgrounds/abstract_1.mp4 \
-            "https://videos.pexels.com/video-files/3129671/3129671-uhd_2560_1440_30fps.mp4" || true
-          
-          curl -L -o assets/backgrounds/particles.mp4 \
-            "https://videos.pexels.com/video-files/856973/856973-hd_1920_1080_30fps.mp4" || true
-          
-          curl -L -o assets/backgrounds/neon.mp4 \
-            "https://videos.pexels.com/video-files/4611396/4611396-hd_1920_1080_25fps.mp4" || true
-          
-          # List downloaded files
-          ls -la assets/backgrounds/
+          # Use Pexels API to get reliable video URLs
+          python -c "
+import os
+import requests
+import random
+
+api_key = os.environ.get('PEXELS_API_KEY', '')
+if not api_key:
+    print('⚠️ No Pexels API key, will use gradient backgrounds')
+    exit(0)
+
+headers = {'Authorization': api_key}
+queries = ['abstract', 'colorful particles', 'neon lights', 'motion graphics']
+
+for i, query in enumerate(queries[:3]):
+    try:
+        url = f'https://api.pexels.com/videos/search?query={query}&orientation=portrait&per_page=5'
+        response = requests.get(url, headers=headers, timeout=15)
+        if response.status_code != 200:
+            print(f'⚠️ API error for {query}: {response.status_code}')
+            continue
+        
+        videos = response.json().get('videos', [])
+        if not videos:
+            continue
+        
+        video = random.choice(videos)
+        video_files = video.get('video_files', [])
+        
+        # Find HD quality
+        best = None
+        for vf in video_files:
+            if vf.get('height', 0) >= 720:
+                if best is None or vf.get('height', 0) < best.get('height', 9999):
+                    best = vf
+        
+        if not best and video_files:
+            best = video_files[0]
+        
+        if best:
+            video_url = best.get('link')
+            print(f'📥 Downloading: {query}...')
+            vid_response = requests.get(video_url, timeout=60)
+            with open(f'assets/broll/{query.replace(\" \", \"_\")}.mp4', 'wb') as f:
+                f.write(vid_response.content)
+            print(f'✅ Downloaded: {query}')
+    except Exception as e:
+        print(f'⚠️ Error fetching {query}: {e}')
+        continue
+
+print('📁 B-roll files:')
+import os
+for f in os.listdir('assets/broll'):
+    print(f'  - {f}')
+"
+        env:
+          PEXELS_API_KEY: ${{ secrets.PEXELS_API_KEY }}
 
       - name: Generate VIRAL trending questions
         run: |
