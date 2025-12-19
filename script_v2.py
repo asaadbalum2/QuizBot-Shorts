@@ -69,13 +69,21 @@ VIDEO_HEIGHT = 1920
 VIDEO_FPS = 30  # Smoother playback
 TARGET_DURATION = 45  # Optimal for Shorts engagement
 
-# Voice settings - More engaging voices
+# Voice settings - ENGAGING, energetic voices for viral content
 VOICES = [
-    "en-US-GuyNeural",      # Casual male
-    "en-US-JennyNeural",    # Friendly female  
-    "en-US-AriaNeural",     # Expressive female
-    "en-US-DavisNeural",    # Deep male
+    "en-US-ChristopherNeural",  # Confident, clear male
+    "en-US-JennyNeural",        # Friendly, upbeat female
+    "en-US-AriaNeural",         # Expressive, dramatic female
+    "en-US-GuyNeural",          # Casual, relatable male
+    "en-US-SaraNeural",         # Warm, engaging female
 ]
+
+# Voice styles for more personality
+VOICE_STYLES = {
+    "en-US-AriaNeural": "cheerful",
+    "en-US-JennyNeural": "excited",
+    "en-US-SaraNeural": "friendly",
+}
 
 # Pexels API for B-roll
 PEXELS_API_KEY = os.environ.get("PEXELS_API_KEY", "")
@@ -190,23 +198,63 @@ def create_option_panel_image(width: int, height: int,
                                option_text: str, 
                                label: str,
                                position: str = "top") -> Image.Image:
-    """Create a professional option panel with gradient and text."""
-    img = Image.new('RGBA', (width, height), (0, 0, 0, 0))
-    draw = ImageDraw.Draw(img)
+    """Create a MODERN, visually appealing option panel with rounded corners and effects."""
+    # Margins for modern look (not edge-to-edge ugly squares)
+    margin_x = 50
+    margin_y = 20
+    inner_width = width - (margin_x * 2)
+    inner_height = height - (margin_y * 2)
+    corner_radius = 40  # Nice rounded corners
     
-    # Create gradient
-    for y in range(height):
-        ratio = y / height
+    img = Image.new('RGBA', (width, height), (0, 0, 0, 0))
+    
+    # Create the rounded panel
+    panel = Image.new('RGBA', (inner_width, inner_height), (0, 0, 0, 0))
+    panel_draw = ImageDraw.Draw(panel)
+    
+    # Create rounded rectangle mask
+    mask = Image.new('L', (inner_width, inner_height), 0)
+    mask_draw = ImageDraw.Draw(mask)
+    mask_draw.rounded_rectangle(
+        [(0, 0), (inner_width - 1, inner_height - 1)],
+        radius=corner_radius,
+        fill=255
+    )
+    
+    # Create gradient on panel
+    for y in range(inner_height):
+        ratio = y / inner_height
         r = int(gradient_colors[0][0] * (1 - ratio) + gradient_colors[1][0] * ratio)
         g = int(gradient_colors[0][1] * (1 - ratio) + gradient_colors[1][1] * ratio)
         b = int(gradient_colors[0][2] * (1 - ratio) + gradient_colors[1][2] * ratio)
-        alpha = int(230 * (1 - abs(ratio - 0.5) * 0.3))  # Fade at edges
-        draw.line([(0, y), (width, y)], fill=(r, g, b, alpha))
+        panel_draw.line([(0, y), (inner_width, y)], fill=(r, g, b, 240))
     
-    # Add subtle glow/shine at top
-    for y in range(min(50, height)):
-        alpha = int(50 * (1 - y / 50))
-        draw.line([(0, y), (width, y)], fill=(255, 255, 255, alpha))
+    # Apply rounded corners
+    panel.putalpha(mask)
+    
+    # Add drop shadow for depth
+    shadow = Image.new('RGBA', (inner_width + 20, inner_height + 20), (0, 0, 0, 0))
+    shadow_draw = ImageDraw.Draw(shadow)
+    shadow_draw.rounded_rectangle(
+        [(10, 10), (inner_width + 9, inner_height + 9)],
+        radius=corner_radius,
+        fill=(0, 0, 0, 100)
+    )
+    shadow = shadow.filter(ImageFilter.GaussianBlur(radius=10))
+    
+    # Paste shadow then panel
+    img.paste(shadow, (margin_x - 10, margin_y), shadow)
+    img.paste(panel, (margin_x, margin_y), panel)
+    
+    # Add glossy shine effect at top
+    shine = Image.new('RGBA', (inner_width - 20, 40), (0, 0, 0, 0))
+    shine_draw = ImageDraw.Draw(shine)
+    for y in range(40):
+        alpha = int(60 * (1 - y / 40))
+        shine_draw.line([(0, y), (inner_width - 20, y)], fill=(255, 255, 255, alpha))
+    img.paste(shine, (margin_x + 10, margin_y + 5), shine)
+    
+    draw = ImageDraw.Draw(img)
     
     # Load font (try to use a better font, fallback to default)
     try:
@@ -601,20 +649,27 @@ def get_broll_for_question(question: dict) -> Optional[str]:
 
 async def generate_voiceover_v2(text: str, output_path: str, 
                                  voice: str = None, retries: int = 5) -> float:
-    """Generate engaging voiceover with selected voice."""
+    """Generate ENGAGING voiceover with dynamic voice and style."""
     if voice is None:
         voice = random.choice(VOICES)
+    
+    # Get voice style for more personality
+    style = VOICE_STYLES.get(voice, None)
     
     last_error = None
     
     for attempt in range(retries):
         try:
-            # Add speech parameters for more engaging delivery
+            # Energetic delivery settings for viral content
+            rate = random.choice(["-3%", "-5%", "+0%"])  # Vary pace slightly
+            pitch = random.choice(["+3Hz", "+5Hz", "+8Hz"])  # Higher = more energetic
+            
+            # Create communicate object with style if supported
             communicate = edge_tts.Communicate(
                 text, 
                 voice,
-                rate="-5%",  # Slightly slower
-                pitch="+5Hz"  # Slightly higher pitch for energy
+                rate=rate,
+                pitch=pitch
             )
             await communicate.save(output_path)
             
@@ -866,9 +921,34 @@ async def generate_video_v2(question: dict, output_filename: str = None) -> str:
     final_video = CompositeVideoClip(all_clips, size=(VIDEO_WIDTH, VIDEO_HEIGHT))
     final_video = final_video.set_duration(total_duration)
     
-    # Set audio
-    voiceover_audio = voiceover_audio.set_start(intro_duration + 0.5)
-    final_audio = CompositeAudioClip([voiceover_audio])
+    # Get background music (mild, appropriate for content)
+    print("🎵 Getting background music...")
+    audio_clips = [voiceover_audio.set_start(intro_duration + 0.5)]
+    
+    try:
+        from background_music import get_background_music, get_mood_for_question
+        music_mood = get_mood_for_question(option_a, option_b)
+        music_path = get_background_music(music_mood, total_duration)
+        
+        if music_path and os.path.exists(music_path):
+            music_clip = AudioFileClip(music_path)
+            # Loop if shorter than video
+            if music_clip.duration < total_duration:
+                music_clip = music_clip.fx(vfx.loop, duration=total_duration)
+            else:
+                music_clip = music_clip.subclip(0, total_duration)
+            
+            # Set music to LOW volume (15% - mild background)
+            music_clip = music_clip.volumex(0.15)
+            audio_clips.append(music_clip.set_start(0))
+            print(f"   ✅ Added background music: {music_mood} mood")
+        else:
+            print("   ⚠️ No background music available")
+    except Exception as e:
+        print(f"   ⚠️ Music error: {e}")
+    
+    # Combine audio
+    final_audio = CompositeAudioClip(audio_clips)
     final_video = final_video.set_audio(final_audio)
     
     # Generate output filename
