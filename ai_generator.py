@@ -187,3 +187,4 @@ if __name__ == "__main__":
     for q in questions[:3]:
         print(f"  • {q['option_a']} OR {q['option_b']}?")
 
+
