@@ -374,32 +374,27 @@ def create_option_panel_image(width: int, height: int,
 
 
 def create_vs_badge(size: int = 120, theme: VideoTheme = None) -> Image.Image:
-    """Create an animated-ready VS badge."""
+    """Create a clean VS badge - NO background shapes, just glowing text."""
     img = Image.new('RGBA', (size, size), (0, 0, 0, 0))
     draw = ImageDraw.Draw(img)
     
-    # Draw glowing circle
     center = size // 2
     accent = theme.accent_color if theme else (255, 215, 0)
     
-    # Outer glow
-    for i in range(10, 0, -1):
-        alpha = int(25 * (10 - i) / 10)
-        r = center - 5 + i * 3
-        draw.ellipse([center - r, center - r, center + r, center + r],
-                     fill=(*accent, alpha))
-    
-    # Main circle
-    r = center - 10
-    draw.ellipse([center - r, center - r, center + r, center + r],
-                 fill=(*accent, 255))
-    
-    # VS text
+    # VS text - LARGER, more impactful
     try:
-        font_path = "C:/Windows/Fonts/impact.ttf" if sys.platform == "win32" else "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"
-        if os.path.exists(font_path):
-            font = ImageFont.truetype(font_path, 50)
-        else:
+        font_candidates = [
+            "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
+            "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf",
+            "C:/Windows/Fonts/impact.ttf",
+            "C:/Windows/Fonts/arialbd.ttf",
+        ]
+        font = None
+        for fp in font_candidates:
+            if os.path.exists(fp):
+                font = ImageFont.truetype(fp, 65)  # Bigger font
+                break
+        if not font:
             font = ImageFont.load_default()
     except Exception:
         font = ImageFont.load_default()
@@ -411,8 +406,18 @@ def create_vs_badge(size: int = 120, theme: VideoTheme = None) -> Image.Image:
     x = (size - text_width) // 2
     y = (size - text_height) // 2 - 5
     
-    draw.text((x + 2, y + 2), "VS", fill=(0, 0, 0, 150), font=font)
-    draw.text((x, y), "VS", fill=(0, 0, 0, 255), font=font)
+    # Multi-layer glow effect (no circle background!)
+    for offset in range(6, 0, -1):
+        alpha = 30
+        draw.text((x + offset, y + offset), "VS", fill=(0, 0, 0, alpha), font=font)
+        draw.text((x - offset, y - offset), "VS", fill=(*accent, alpha), font=font)
+        draw.text((x + offset, y - offset), "VS", fill=(*accent, alpha // 2), font=font)
+        draw.text((x - offset, y + offset), "VS", fill=(*accent, alpha // 2), font=font)
+    
+    # Strong shadow
+    draw.text((x + 3, y + 3), "VS", fill=(0, 0, 0, 200), font=font)
+    # Main text - accent color
+    draw.text((x, y), "VS", fill=(*accent, 255), font=font)
     
     return img
 
@@ -547,32 +552,38 @@ def create_hook_text(width: int, height: int, text: str,
 
 
 def create_cta_text(width: int, height: int, theme: VideoTheme) -> Image.Image:
-    """Create call-to-action overlay."""
+    """Create call-to-action overlay - TEXT ONLY, no cheap backgrounds."""
     img = Image.new('RGBA', (width, height), (0, 0, 0, 0))
     draw = ImageDraw.Draw(img)
     
     try:
         font_path = "C:/Windows/Fonts/impact.ttf" if sys.platform == "win32" else "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"
         if os.path.exists(font_path):
-            font = ImageFont.truetype(font_path, 40)
+            font = ImageFont.truetype(font_path, 44)
         else:
             font = ImageFont.load_default()
     except Exception:
         font = ImageFont.load_default()
     
-    text = "👆 FOLLOW FOR MORE! 👆"
+    text = "FOLLOW FOR MORE!"
     bbox = draw.textbbox((0, 0), text, font=font)
     text_width = bbox[2] - bbox[0]
     x = (width - text_width) // 2
-    y = height - 150
+    y = height - 140
     
-    # Background pill
-    padding = 20
-    pill_rect = [x - padding, y - padding // 2, 
-                 x + text_width + padding, y + 50 + padding // 2]
-    draw.rounded_rectangle(pill_rect, radius=25, fill=(*theme.accent_color, 220))
+    # NO BACKGROUND - just text with glow effect
+    accent = theme.accent_color
     
-    draw.text((x, y), text, fill=(0, 0, 0, 255), font=font)
+    # Glow effect
+    for offset in range(4, 0, -1):
+        alpha = 40
+        draw.text((x + offset, y + offset), text, fill=(0, 0, 0, alpha), font=font)
+        draw.text((x - offset, y - offset), text, fill=(*accent, alpha), font=font)
+    
+    # Shadow
+    draw.text((x + 2, y + 2), text, fill=(0, 0, 0, 180), font=font)
+    # Main text - white for contrast
+    draw.text((x, y), text, fill=(255, 255, 255, 255), font=font)
     
     return img
 
@@ -1136,6 +1147,22 @@ async def generate_video_v2(question: dict, output_filename: str = None) -> str:
     print(f"📁 Output: {output_path}")
     print(f"🎨 Theme: {theme.name}")
     print(f"⏱️ Duration: {total_duration:.1f}s")
+    
+    # AI Evaluation (development phase only)
+    dev_mode = os.environ.get("DEV_EVALUATE", "false").lower() == "true"
+    if dev_mode:
+        try:
+            from ai_evaluator import evaluate_and_print
+            has_music_flag = 'music_clip' in dir() and music_clip is not None
+            evaluate_and_print(
+                option_a, option_b,
+                theme=theme.name,
+                has_broll=(broll_path is not None),
+                has_music=has_music_flag,
+                has_sfx=True
+            )
+        except Exception as e:
+            print(f"   ⚠️ AI evaluation skipped: {e}")
     
     return str(output_path)
 

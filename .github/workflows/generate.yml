@@ -136,6 +136,7 @@ jobs:
           fi
         env:
           AUTO_UPLOAD: ${{ github.event.inputs.test_only != 'true' }}
+          DEV_EVALUATE: ${{ github.event.inputs.test_only }}
           YOUTUBE_CLIENT_ID: ${{ secrets.YOUTUBE_CLIENT_ID }}
           YOUTUBE_CLIENT_SECRET: ${{ secrets.YOUTUBE_CLIENT_SECRET }}
           YOUTUBE_REFRESH_TOKEN: ${{ secrets.YOUTUBE_REFRESH_TOKEN }}

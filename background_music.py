@@ -12,63 +12,53 @@ from typing import Optional, List
 MUSIC_DIR = Path("./assets/music")
 MUSIC_DIR.mkdir(parents=True, exist_ok=True)
 
-# VERIFIED WORKING free music URLs (Public Domain / CC0)
-# These are from Archive.org and other verified free sources
-FREE_MUSIC_LIBRARY = {
+# Using Pixabay's free music API (no API key needed for some endpoints)
+# These are ACTUAL working URLs from Pixabay's CDN
+PIXABAY_MUSIC_URLS = {
     "fun": [
-        # Upbeat, happy tracks (CC0/Public Domain from archive.org)
-        "https://archive.org/download/happyrock/HappyRock.mp3",
-        "https://archive.org/download/PositiveHappyMusic/Happy_Day.mp3",
+        # Fun, upbeat (Pixabay free music - CC0)
+        "https://cdn.pixabay.com/download/audio/2022/03/15/audio_8cb749d484.mp3",  # Happy Day
+        "https://cdn.pixabay.com/download/audio/2022/01/18/audio_d0c6ff1c94.mp3",  # Upbeat Fun
+        "https://cdn.pixabay.com/download/audio/2021/11/25/audio_91b32e02f9.mp3",  # Cheerful
     ],
     "dramatic": [
-        # Epic, cinematic tracks
-        "https://archive.org/download/EpicCinematicTrailer/Epic_Trailer.mp3",
-        "https://archive.org/download/cinematic-music-collection/Dramatic_Rise.mp3",
+        # Epic, cinematic
+        "https://cdn.pixabay.com/download/audio/2022/02/22/audio_d1718ab41b.mp3",  # Epic Cinematic
+        "https://cdn.pixabay.com/download/audio/2022/05/16/audio_d44b2d1089.mp3",  # Dramatic
     ],
     "energetic": [
         # Electronic, upbeat
-        "https://archive.org/download/Electronic_Music_Collection/Electro_Beat.mp3",
+        "https://cdn.pixabay.com/download/audio/2022/03/10/audio_70bdd56cf6.mp3",  # Electronic
+        "https://cdn.pixabay.com/download/audio/2022/10/25/audio_398e13b76e.mp3",  # Energy
     ],
     "chill": [
         # Calm, ambient
-        "https://archive.org/download/ambient-relaxing/Calm_Background.mp3",
+        "https://cdn.pixabay.com/download/audio/2022/05/27/audio_a15cea5c15.mp3",  # Lofi Chill
+        "https://cdn.pixabay.com/download/audio/2022/01/20/audio_0a8e1e4c15.mp3",  # Ambient
     ],
     "mystery": [
         # Mysterious, tense
-        "https://archive.org/download/mystery-music/Suspense_Track.mp3",
+        "https://cdn.pixabay.com/download/audio/2022/03/15/audio_942694cbd3.mp3",  # Suspense
     ],
 }
 
-# Fallback: Generate simple tones using pydub if available
-def generate_simple_beat(output_path: str, duration_ms: int = 30000) -> Optional[str]:
-    """Generate a simple beat using pydub (as ultimate fallback)."""
-    try:
-        from pydub import AudioSegment
-        from pydub.generators import Sine, Square
-        
-        # Create a simple ambient tone
-        base_freq = random.choice([220, 261, 293, 329])  # A3, C4, D4, E4
-        
-        # Create a simple pad sound
-        tone1 = Sine(base_freq).to_audio_segment(duration=duration_ms).fade_in(1000).fade_out(1000)
-        tone2 = Sine(base_freq * 1.5).to_audio_segment(duration=duration_ms).fade_in(2000).fade_out(2000)
-        
-        # Mix them quietly
-        mixed = tone1.overlay(tone2)
-        mixed = mixed - 25  # Reduce volume significantly
-        
-        # Export
-        mixed.export(output_path, format="mp3")
-        return output_path
-    except Exception as e:
-        print(f"   ⚠️ Could not generate beat: {e}")
-        return None
+# Backup: Chosic free music (reliable CDN)
+CHOSIC_MUSIC_URLS = {
+    "fun": "https://www.chosic.com/wp-content/uploads/2021/07/Happy-Summer-Show-chosic.com_.mp3",
+    "dramatic": "https://www.chosic.com/wp-content/uploads/2021/05/Epic-Cinematic-Action-chosic.com_.mp3",
+    "energetic": "https://www.chosic.com/wp-content/uploads/2021/06/Electronic-Rock-chosic.com_.mp3",
+    "chill": "https://www.chosic.com/wp-content/uploads/2021/04/Lofi-Study-chosic.com_.mp3",
+}
+
+# NOTE: Removed pydub tone generation - it sounded like broken radio!
+# Better to have NO music than bad generated tones.
 
 
 def get_background_music(mood: str = "fun", duration: float = 45) -> Optional[str]:
     """
-    Fetch background music matching the mood.
+    Fetch REAL background music matching the mood.
     Returns path to downloaded MP3 or None.
+    NO GENERATED TONES - only real music or nothing.
     """
     print(f"   🎵 Getting {mood} background music...")
     
@@ -78,34 +68,41 @@ def get_background_music(mood: str = "fun", duration: float = 45) -> Optional[st
         print(f"   ✅ Using cached music: {Path(cached).name}")
         return cached
     
-    # Try downloading from free library
-    urls = FREE_MUSIC_LIBRARY.get(mood, FREE_MUSIC_LIBRARY.get("fun", []))
+    # Try Pixabay music (most reliable)
+    pixabay_urls = PIXABAY_MUSIC_URLS.get(mood, PIXABAY_MUSIC_URLS.get("fun", []))
+    random.shuffle(pixabay_urls)  # Randomize
     
-    for url in urls:
+    for url in pixabay_urls:
         try:
             music_path = _download_music(url, mood)
             if music_path:
+                print(f"   ✅ Got Pixabay music")
                 return music_path
         except Exception as e:
-            print(f"   ⚠️ Download failed: {e}")
+            print(f"   ⚠️ Pixabay download failed: {e}")
             continue
     
-    # Try generating a simple beat as fallback
-    print("   🎵 Trying to generate ambient music...")
-    fallback_path = MUSIC_DIR / f"generated_{mood}.mp3"
-    result = generate_simple_beat(str(fallback_path), int(duration * 1000) + 5000)
-    if result:
-        print(f"   ✅ Generated ambient music")
-        return result
+    # Try Chosic backup
+    chosic_url = CHOSIC_MUSIC_URLS.get(mood, CHOSIC_MUSIC_URLS.get("fun"))
+    if chosic_url:
+        try:
+            music_path = _download_music(chosic_url, mood)
+            if music_path:
+                print(f"   ✅ Got Chosic music")
+                return music_path
+        except Exception as e:
+            print(f"   ⚠️ Chosic download failed: {e}")
     
     # Last resort: Use any cached music
     all_cached = list(MUSIC_DIR.glob("**/*.mp3"))
-    if all_cached:
-        chosen = random.choice(all_cached)
+    valid_cached = [f for f in all_cached if f.stat().st_size > 50000]  # At least 50KB
+    if valid_cached:
+        chosen = random.choice(valid_cached)
         print(f"   ⚠️ Using fallback cached: {chosen.name}")
         return str(chosen)
     
-    print("   ⚠️ No background music available")
+    # NO GENERATED TONES - better to have no music than broken radio sound
+    print("   ⚠️ No background music available (skipping - better than bad audio)")
     return None
 
 

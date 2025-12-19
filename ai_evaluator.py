@@ -1,187 +1,250 @@
 #!/usr/bin/env python3
 """
-AI Video Quality Evaluator - Uses AI to assess generated video quality
-For development only - evaluates and provides feedback on generated content
+AI Video Content Evaluator - Uses Groq to evaluate video content quality
+For development phase only - provides feedback on virality potential
 """
 import os
 import json
-from pathlib import Path
 from typing import Dict, Optional
 
-# Groq for fast evaluation
-GROQ_API_KEY = os.environ.get("GROQ_API_KEY", "")
+# Try to import Groq
+try:
+    from groq import Groq
+    HAS_GROQ = True
+except ImportError:
+    HAS_GROQ = False
 
-def evaluate_question_quality(question: Dict) -> Dict:
-    """
-    Evaluate a Would You Rather question for viral potential.
-    Returns a score and suggestions.
-    """
-    if not GROQ_API_KEY:
-        return {"score": 5, "feedback": "AI evaluation unavailable (no API key)"}
+
+class AIEvaluator:
+    """Evaluates video content for virality and engagement potential."""
     
-    try:
-        from groq import Groq
-        client = Groq(api_key=GROQ_API_KEY)
+    def __init__(self):
+        self.groq_client = None
+        if HAS_GROQ:
+            api_key = os.environ.get("GROQ_API_KEY")
+            if api_key:
+                self.groq_client = Groq(api_key=api_key)
+    
+    def evaluate_question(self, option_a: str, option_b: str) -> Dict:
+        """
+        Evaluate a Would You Rather question for viral potential.
+        Returns scores and suggestions.
+        """
+        if not self.groq_client:
+            return {"error": "No Groq client available"}
         
-        option_a = question.get("option_a", "")
-        option_b = question.get("option_b", "")
-        
-        prompt = f"""Rate this "Would You Rather" question for viral YouTube Shorts potential.
+        prompt = f'''You are a YouTube Shorts viral content expert. Evaluate this "Would You Rather" question:
 
-Question: Would you rather...
-A: {option_a}
-B: {option_b}
+Option A: {option_a}
+Option B: {option_b}
 
-Rate 1-10 on these criteria:
-1. ENGAGEMENT: Will viewers debate in comments?
-2. RELATABILITY: Can most people imagine both scenarios?
-3. BALANCE: Are both options truly difficult to choose between?
-4. HOOK: Does it grab attention immediately?
-5. SHAREABILITY: Would viewers share this?
+Rate on a scale of 1-10 and provide brief feedback:
 
-Return JSON only:
+1. **Engagement Potential**: Will people want to comment their choice?
+2. **Controversy Level**: Is it debatable without being offensive?
+3. **Relatability**: Can most viewers relate to the choices?
+4. **Shareability**: Would someone share this with friends?
+5. **Hook Factor**: Does it grab attention in first 2 seconds?
+
+Return ONLY valid JSON:
 {{
-  "overall_score": 1-10,
-  "engagement": 1-10,
-  "relatability": 1-10,
-  "balance": 1-10,
-  "hook": 1-10,
-  "shareability": 1-10,
-  "verdict": "VIRAL_WORTHY" or "NEEDS_WORK" or "SKIP",
-  "suggestions": "1-2 sentence improvement suggestion"
-}}"""
-        
-        response = client.chat.completions.create(
-            model="llama-3.1-8b-instant",
-            messages=[
-                {"role": "system", "content": "You are a viral content expert. Rate questions honestly. Be harsh - only truly engaging content gets high scores."},
-                {"role": "user", "content": prompt}
-            ],
-            temperature=0.3,
-            max_tokens=300
-        )
-        
-        content = response.choices[0].message.content
-        
-        # Extract JSON
-        import re
-        json_match = re.search(r'\{[\s\S]*\}', content)
-        if json_match:
-            return json.loads(json_match.group(0))
-        
-        return {"score": 5, "feedback": "Failed to parse AI response"}
-        
-    except Exception as e:
-        return {"score": 5, "feedback": f"Evaluation error: {e}"}
+    "engagement": <1-10>,
+    "controversy": <1-10>,
+    "relatability": <1-10>,
+    "shareability": <1-10>,
+    "hook_factor": <1-10>,
+    "overall_score": <1-10>,
+    "verdict": "<one of: VIRAL, GOOD, AVERAGE, WEAK>",
+    "improvement_tip": "<one sentence suggestion to make it more viral>"
+}}'''
 
-
-def evaluate_video_concept(option_a: str, option_b: str, theme: str) -> Dict:
-    """
-    Evaluate the overall video concept before generation.
-    Can save time by flagging low-quality content early.
-    """
-    if not GROQ_API_KEY:
-        return {"should_generate": True, "score": 5}
+        try:
+            response = self.groq_client.chat.completions.create(
+                model="llama-3.3-70b-versatile",
+                messages=[{"role": "user", "content": prompt}],
+                max_tokens=500,
+                temperature=0.3
+            )
+            
+            content = response.choices[0].message.content.strip()
+            
+            # Parse JSON from response
+            if "```json" in content:
+                content = content.split("```json")[1].split("```")[0]
+            elif "```" in content:
+                content = content.split("```")[1].split("```")[0]
+            
+            return json.loads(content)
+            
+        except Exception as e:
+            return {"error": str(e)}
     
-    try:
-        from groq import Groq
-        client = Groq(api_key=GROQ_API_KEY)
+    def evaluate_video_components(self, 
+                                   topic: str,
+                                   option_a: str,
+                                   option_b: str,
+                                   theme_name: str,
+                                   has_broll: bool,
+                                   has_music: bool,
+                                   has_sfx: bool) -> Dict:
+        """
+        Evaluate all components of a video for quality.
+        """
+        if not self.groq_client:
+            return {"error": "No Groq client available"}
         
-        prompt = f"""Quick assessment - should we generate a video for this content?
+        prompt = f'''You are a YouTube Shorts production expert. Evaluate this video setup:
 
-Question: Would you rather {option_a} OR {option_b}?
-Visual Theme: {theme}
+CONTENT:
+- Topic/Question: Would you rather {option_a} OR {option_b}?
+- Visual Theme: {theme_name}
+- Has B-roll video: {"Yes" if has_broll else "No"}
+- Has Background Music: {"Yes" if has_music else "No"}  
+- Has Sound Effects: {"Yes" if has_sfx else "No"}
 
-Criteria:
-- Is this question interesting enough for YouTube Shorts?
-- Will it generate comments and engagement?
-- Is it appropriate and non-offensive?
+Rate each component 1-10 and give the overall video potential:
 
-Return JSON:
+Return ONLY valid JSON:
 {{
-  "should_generate": true/false,
-  "score": 1-10,
-  "reason": "1 sentence reason"
-}}"""
+    "topic_score": <1-10>,
+    "topic_feedback": "<brief feedback on the question>",
+    "production_score": <1-10>,
+    "production_feedback": "<feedback on audio/visual elements>",
+    "overall_potential": <1-10>,
+    "verdict": "<VIRAL POTENTIAL / GOOD / NEEDS WORK / WEAK>",
+    "top_improvement": "<single most important improvement needed>"
+}}'''
+
+        try:
+            response = self.groq_client.chat.completions.create(
+                model="llama-3.3-70b-versatile",
+                messages=[{"role": "user", "content": prompt}],
+                max_tokens=500,
+                temperature=0.3
+            )
+            
+            content = response.choices[0].message.content.strip()
+            
+            if "```json" in content:
+                content = content.split("```json")[1].split("```")[0]
+            elif "```" in content:
+                content = content.split("```")[1].split("```")[0]
+            
+            return json.loads(content)
+            
+        except Exception as e:
+            return {"error": str(e)}
+    
+    def suggest_better_question(self, current_a: str, current_b: str) -> Optional[Dict]:
+        """
+        Suggest a more viral version of the question.
+        """
+        if not self.groq_client:
+            return None
         
-        response = client.chat.completions.create(
-            model="llama-3.1-8b-instant",
-            messages=[{"role": "user", "content": prompt}],
-            temperature=0.2,
-            max_tokens=150
-        )
-        
-        content = response.choices[0].message.content
-        import re
-        json_match = re.search(r'\{[\s\S]*\}', content)
-        if json_match:
-            result = json.loads(json_match.group(0))
-            return result
-        
-        return {"should_generate": True, "score": 5}
-        
-    except Exception as e:
-        print(f"Evaluation error: {e}")
-        return {"should_generate": True, "score": 5}
+        prompt = f'''Current "Would You Rather" question:
+A: {current_a}
+B: {current_b}
+
+This question is not viral enough. Create a MORE ENGAGING version that:
+1. Has higher stakes or more extreme choices
+2. Is more controversial (but appropriate)
+3. Makes people NEED to pick a side
+4. Would make viewers comment and debate
+
+Return ONLY valid JSON:
+{{
+    "option_a": "<improved option A - max 60 chars>",
+    "option_b": "<improved option B - max 60 chars>",
+    "why_better": "<one sentence explaining why this is more viral>"
+}}'''
+
+        try:
+            response = self.groq_client.chat.completions.create(
+                model="llama-3.3-70b-versatile",
+                messages=[{"role": "user", "content": prompt}],
+                max_tokens=300,
+                temperature=0.7
+            )
+            
+            content = response.choices[0].message.content.strip()
+            
+            if "```json" in content:
+                content = content.split("```json")[1].split("```")[0]
+            elif "```" in content:
+                content = content.split("```")[1].split("```")[0]
+            
+            return json.loads(content)
+            
+        except Exception as e:
+            print(f"   ⚠️ Could not get suggestion: {e}")
+            return None
 
 
-def batch_evaluate_questions(questions_file: str = "questions.json") -> None:
-    """
-    Evaluate all questions in the file and report quality stats.
-    Useful for development to understand content quality.
-    """
-    if not os.path.exists(questions_file):
-        print(f"Questions file not found: {questions_file}")
-        return
+def evaluate_and_print(option_a: str, option_b: str, theme: str = "Unknown",
+                       has_broll: bool = True, has_music: bool = True, has_sfx: bool = True):
+    """Convenience function to evaluate and print results."""
+    evaluator = AIEvaluator()
     
-    with open(questions_file, 'r') as f:
-        questions = json.load(f)
+    print("\n" + "="*60)
+    print("🤖 AI CONTENT EVALUATION")
+    print("="*60)
     
-    print(f"\n📊 Evaluating {len(questions)} questions...")
+    # Evaluate question
+    print("\n📝 Evaluating question...")
+    q_result = evaluator.evaluate_question(option_a, option_b)
     
-    scores = []
-    viral_worthy = 0
-    needs_work = 0
-    skip = 0
+    if "error" not in q_result:
+        print(f"   Engagement: {q_result.get('engagement', '?')}/10")
+        print(f"   Controversy: {q_result.get('controversy', '?')}/10")
+        print(f"   Relatability: {q_result.get('relatability', '?')}/10")
+        print(f"   Shareability: {q_result.get('shareability', '?')}/10")
+        print(f"   Hook Factor: {q_result.get('hook_factor', '?')}/10")
+        print(f"   ⭐ OVERALL: {q_result.get('overall_score', '?')}/10 - {q_result.get('verdict', '?')}")
+        print(f"   💡 Tip: {q_result.get('improvement_tip', 'N/A')}")
+    else:
+        print(f"   ⚠️ Evaluation failed: {q_result['error']}")
     
-    for i, q in enumerate(questions[:10]):  # Evaluate first 10 to save API calls
-        result = evaluate_question_quality(q)
-        score = result.get("overall_score", 5)
-        verdict = result.get("verdict", "NEEDS_WORK")
-        
-        scores.append(score)
-        
-        if verdict == "VIRAL_WORTHY":
-            viral_worthy += 1
-            icon = "🔥"
-        elif verdict == "SKIP":
-            skip += 1
-            icon = "⏭️"
-        else:
-            needs_work += 1
-            icon = "📝"
-        
-        print(f"   {icon} Q{i+1}: Score {score}/10 - {verdict}")
-        if result.get("suggestions"):
-            print(f"      💡 {result['suggestions']}")
+    # Evaluate full video
+    print("\n🎬 Evaluating video setup...")
+    v_result = evaluator.evaluate_video_components(
+        f"{option_a} vs {option_b}",
+        option_a, option_b, theme,
+        has_broll, has_music, has_sfx
+    )
     
-    if scores:
-        avg_score = sum(scores) / len(scores)
-        print(f"\n📈 Average Score: {avg_score:.1f}/10")
-        print(f"   🔥 Viral Worthy: {viral_worthy}")
-        print(f"   📝 Needs Work: {needs_work}")
-        print(f"   ⏭️ Skip: {skip}")
-        
-        if avg_score < 5:
-            print("\n⚠️ Content quality is LOW. Consider:")
-            print("   - Using more engaging question templates")
-            print("   - Adding trending topics")
-            print("   - Making options more relatable")
-        elif avg_score >= 7:
-            print("\n✅ Content quality is GOOD!")
+    if "error" not in v_result:
+        print(f"   Topic Score: {v_result.get('topic_score', '?')}/10")
+        print(f"   Production Score: {v_result.get('production_score', '?')}/10")
+        print(f"   ⭐ POTENTIAL: {v_result.get('overall_potential', '?')}/10 - {v_result.get('verdict', '?')}")
+        print(f"   📝 Topic: {v_result.get('topic_feedback', 'N/A')}")
+        print(f"   🎥 Production: {v_result.get('production_feedback', 'N/A')}")
+        print(f"   💡 Top Fix: {v_result.get('top_improvement', 'N/A')}")
+    else:
+        print(f"   ⚠️ Evaluation failed: {v_result['error']}")
+    
+    # If score is low, suggest improvement
+    overall = q_result.get('overall_score', 5)
+    if overall < 7:
+        print("\n🔄 Getting improvement suggestion...")
+        suggestion = evaluator.suggest_better_question(option_a, option_b)
+        if suggestion:
+            print(f"   Better A: {suggestion.get('option_a', 'N/A')}")
+            print(f"   Better B: {suggestion.get('option_b', 'N/A')}")
+            print(f"   Why: {suggestion.get('why_better', 'N/A')}")
+    
+    print("\n" + "="*60)
+    
+    return q_result, v_result
 
 
 if __name__ == "__main__":
-    # Run batch evaluation
-    batch_evaluate_questions()
-
+    # Test
+    evaluate_and_print(
+        "Live 10 years younger in eternal health",
+        "Have 10 extra years of lifespan naturally",
+        theme="Electric Blue",
+        has_broll=True,
+        has_music=False,
+        has_sfx=True
+    )
