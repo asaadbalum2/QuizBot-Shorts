@@ -1,16 +1,23 @@
 #!/usr/bin/env python3
 """
-QuizBot V2 - Professional Viral "Would You Rather" Video Generator
+ViralShorts Factory - Professional Viral Video Generator
 Complete ground-up rebuild for 10/10 quality
 
-Key improvements:
+Supports multiple video types:
+- "Would You Rather" quizzes
+- Scary Facts (coming soon)
+- Money/Finance Facts (coming soon)
+- Motivational Quotes (coming soon)
+
+Key features:
 - Professional visual design with gradients and modern UI
-- Dynamic B-roll integration from Pexels API
+- Topic-specific B-roll from Pexels API (AI keyword matching)
 - Trending topic integration
 - Smooth animations and transitions
-- Professional typography
+- Professional typography (text only, no ugly boxes!)
+- Sound effects (whoosh, tick, ding) for professional feel
+- Dynamic background music (Jamendo/FreePD)
 - Engagement hooks (subscribe, follow prompts)
-- Sound design with background music
 - Multiple visual styles/themes
 """
 
@@ -262,113 +269,65 @@ def create_option_panel_image(width: int, height: int,
                                option_text: str, 
                                label: str,
                                position: str = "top") -> Image.Image:
-    """Create GLASSMORPHISM style option panel - NO solid squares, semi-transparent and modern."""
-    # Much larger margins and smaller panel for modern look
-    margin_x = 80
-    margin_y = 40
-    inner_width = width - (margin_x * 2)
-    inner_height = height - (margin_y * 2) - 20
-    corner_radius = 50  # Very rounded corners
-    
+    """Create TEXT-ONLY option display - NO BOXES, NO RECTANGLES. 
+    Just beautiful text with colored glow and strong shadows."""
     img = Image.new('RGBA', (width, height), (0, 0, 0, 0))
-    
-    # Create glassmorphism panel (semi-transparent with blur effect)
-    panel = Image.new('RGBA', (inner_width, inner_height), (0, 0, 0, 0))
-    panel_draw = ImageDraw.Draw(panel)
-    
-    # Create rounded rectangle mask
-    mask = Image.new('L', (inner_width, inner_height), 0)
-    mask_draw = ImageDraw.Draw(mask)
-    mask_draw.rounded_rectangle(
-        [(0, 0), (inner_width - 1, inner_height - 1)],
-        radius=corner_radius,
-        fill=255
-    )
-    
-    # GLASSMORPHISM: Semi-transparent gradient (lower opacity!)
-    base_alpha = 180  # More transparent (was 240)
-    for y in range(inner_height):
-        ratio = y / inner_height
-        r = int(gradient_colors[0][0] * (1 - ratio) + gradient_colors[1][0] * ratio)
-        g = int(gradient_colors[0][1] * (1 - ratio) + gradient_colors[1][1] * ratio)
-        b = int(gradient_colors[0][2] * (1 - ratio) + gradient_colors[1][2] * ratio)
-        # Fade transparency at edges for blending
-        edge_fade = 1 - (abs(ratio - 0.5) * 0.4)
-        alpha = int(base_alpha * edge_fade)
-        panel_draw.line([(0, y), (inner_width, y)], fill=(r, g, b, alpha))
-    
-    # Apply rounded corners
-    panel.putalpha(mask)
-    
-    # Add subtle glow/border instead of drop shadow
-    glow = Image.new('RGBA', (inner_width + 8, inner_height + 8), (0, 0, 0, 0))
-    glow_draw = ImageDraw.Draw(glow)
-    glow_color = (*gradient_colors[0][:3], 100)  # Use primary color for glow
-    glow_draw.rounded_rectangle(
-        [(0, 0), (inner_width + 7, inner_height + 7)],
-        radius=corner_radius + 4,
-        fill=None,
-        outline=glow_color,
-        width=4
-    )
-    glow = glow.filter(ImageFilter.GaussianBlur(radius=6))
-    
-    # Paste glow then panel
-    img.paste(glow, (margin_x - 4, margin_y + 10 if position == "top" else margin_y), glow)
-    img.paste(panel, (margin_x, margin_y + 10 if position == "top" else margin_y + 5), panel)
-    
-    # Add subtle inner highlight at top
-    highlight = Image.new('RGBA', (inner_width - 40, 30), (0, 0, 0, 0))
-    highlight_draw = ImageDraw.Draw(highlight)
-    for y in range(30):
-        alpha = int(40 * (1 - y / 30))
-        highlight_draw.line([(0, y), (inner_width - 40, y)], fill=(255, 255, 255, alpha))
-    img.paste(highlight, (margin_x + 20, margin_y + 15 if position == "top" else margin_y + 10), highlight)
-    
     draw = ImageDraw.Draw(img)
     
-    # Load font (try to use a better font, fallback to default)
+    # Get the primary color for this option (for colored text/glow)
+    text_color = gradient_colors[0]  # Use option color for text
+    glow_color = (*text_color, 150)
+    
+    # Load font
+    font_size_label = 52
+    font_size_text = 62  # Larger for readability
+    font_path = None
+    
+    font_candidates = [
+        "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
+        "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf",
+        "C:/Windows/Fonts/impact.ttf",
+        "C:/Windows/Fonts/arialbd.ttf",
+    ]
+    
+    for fp in font_candidates:
+        if os.path.exists(fp):
+            font_path = fp
+            break
+    
     try:
-        # Try to load a bold font
-        font_size_label = 48
-        font_size_text = 56
-        font_path = None
-        
-        # Check for fonts
-        font_candidates = [
-            "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
-            "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf",
-            "C:/Windows/Fonts/impact.ttf",
-            "C:/Windows/Fonts/arialbd.ttf",
-        ]
-        
-        for fp in font_candidates:
-            if os.path.exists(fp):
-                font_path = fp
-                break
-        
         if font_path:
             font_label = ImageFont.truetype(font_path, font_size_label)
             font_text = ImageFont.truetype(font_path, font_size_text)
         else:
             font_label = ImageFont.load_default()
             font_text = ImageFont.load_default()
-    except Exception:
+    except:
         font_label = ImageFont.load_default()
         font_text = ImageFont.load_default()
     
-    # Draw label (A or B)
-    label_y = 30 if position == "top" else height - 80
-    bbox = draw.textbbox((0, 0), label, font=font_label)
+    # Draw label (OPTION A or OPTION B) with glow
+    label_full = f"OPTION {label}"
+    label_y = 20 if position == "top" else height - 70
+    bbox = draw.textbbox((0, 0), label_full, font=font_label)
     label_width = bbox[2] - bbox[0]
-    draw.text(((width - label_width) // 2, label_y), label, 
-              fill=(255, 255, 255, 255), font=font_label)
+    label_x = (width - label_width) // 2
+    
+    # Label glow effect
+    for offset in range(6, 0, -2):
+        alpha = 30
+        draw.text((label_x, label_y), label_full, 
+                  fill=(*text_color, alpha), font=font_label)
+    # Label shadow
+    draw.text((label_x + 2, label_y + 2), label_full, fill=(0, 0, 0, 200), font=font_label)
+    # Label main text - WHITE for contrast
+    draw.text((label_x, label_y), label_full, fill=(255, 255, 255, 255), font=font_label)
     
     # Word wrap the option text
     words = option_text.split()
     lines = []
     current_line = []
-    max_chars = 25
+    max_chars = 22  # Slightly shorter lines for larger text
     
     for word in words:
         test_line = ' '.join(current_line + [word])
@@ -381,8 +340,8 @@ def create_option_panel_image(width: int, height: int,
     if current_line:
         lines.append(' '.join(current_line))
     
-    # Draw wrapped text centered
-    line_height = 65
+    # Calculate text positioning
+    line_height = 75
     total_text_height = len(lines) * line_height
     start_y = (height - total_text_height) // 2
     
@@ -392,10 +351,23 @@ def create_option_panel_image(width: int, height: int,
         x = (width - text_width) // 2
         y = start_y + i * line_height
         
-        # Draw text shadow
-        draw.text((x + 3, y + 3), line, fill=(0, 0, 0, 180), font=font_text)
-        # Draw main text
-        draw.text((x, y), line, fill=(255, 255, 255, 255), font=font_text)
+        # STRONG shadow layers for depth (no box needed!)
+        for shadow_offset in [6, 4, 2]:
+            shadow_alpha = 100 + (6 - shadow_offset) * 30
+            draw.text((x + shadow_offset, y + shadow_offset), line, 
+                      fill=(0, 0, 0, shadow_alpha), font=font_text)
+        
+        # Colored glow behind text
+        for glow_offset in range(-2, 3):
+            for glow_offset_y in range(-2, 3):
+                if glow_offset != 0 or glow_offset_y != 0:
+                    draw.text((x + glow_offset, y + glow_offset_y), line, 
+                              fill=(*text_color, 60), font=font_text)
+        
+        # Main text - colored to match theme
+        draw.text((x, y), line, fill=(*text_color, 255), font=font_text)
+        # White highlight overlay for pop
+        draw.text((x - 1, y - 1), line, fill=(255, 255, 255, 100), font=font_text)
     
     return img
 
@@ -781,7 +753,7 @@ async def generate_voiceover_v2(text: str, output_path: str,
                 last_error = e
                 print(f"   ⚠️ TTS attempt {attempt + 1}/{retries} with {voice_attempt} failed: {e}")
                 if attempt < retries - 1:
-                    wait_time = (attempt + 1) * 45  # Longer wait (45s per retry)
+                    wait_time = 5 + (attempt * 5)  # Quick retries: 5s, 10s, 15s
                     print(f"   Waiting {wait_time}s before retry...")
                     await asyncio.sleep(wait_time)
         
@@ -1040,9 +1012,42 @@ async def generate_video_v2(question: dict, output_filename: str = None) -> str:
     final_video = final_video.set_duration(total_duration)
     
     # Get background music (mild, appropriate for content)
-    print("🎵 Getting background music...")
+    print("🎵 Getting background music & sound effects...")
     audio_clips = [voiceover_audio.set_start(intro_duration + 0.5)]
     
+    # Add Sound Effects for professional feel
+    try:
+        from sound_effects import get_all_sfx
+        sfx = get_all_sfx()
+        
+        # Dramatic hit on hook reveal
+        if sfx.get('hit') and os.path.exists(sfx['hit']):
+            hit_clip = AudioFileClip(sfx['hit']).volumex(0.4)
+            audio_clips.append(hit_clip.set_start(0.2))
+            print("   ✅ Added dramatic hit SFX")
+        
+        # Whoosh on transition to question
+        if sfx.get('whoosh') and os.path.exists(sfx['whoosh']):
+            whoosh_clip = AudioFileClip(sfx['whoosh']).volumex(0.3)
+            audio_clips.append(whoosh_clip.set_start(intro_duration - 0.2))
+            print("   ✅ Added whoosh SFX")
+        
+        # Tick sounds for countdown
+        if sfx.get('tick') and os.path.exists(sfx['tick']):
+            tick_clip = AudioFileClip(sfx['tick']).volumex(0.5)
+            for i in range(3):
+                audio_clips.append(tick_clip.copy().set_start(countdown_start + i + 0.1))
+            print("   ✅ Added tick SFX (x3)")
+        
+        # Ding on reveal
+        if sfx.get('ding') and os.path.exists(sfx['ding']):
+            ding_clip = AudioFileClip(sfx['ding']).volumex(0.5)
+            audio_clips.append(ding_clip.set_start(reveal_time))
+            print("   ✅ Added ding SFX")
+    except Exception as e:
+        print(f"   ⚠️ SFX error (non-critical): {e}")
+    
+    # Background music
     try:
         from background_music import get_background_music, get_mood_for_question
         music_mood = get_mood_for_question(option_a, option_b)

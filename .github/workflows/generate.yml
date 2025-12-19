@@ -1,4 +1,4 @@
-name: QuizBot V2 - Professional Video Generator
+name: ViralShorts Factory - Auto Video Generator
 
 on:
   workflow_dispatch:
@@ -201,19 +201,16 @@ jobs:
 
       - name: Summary
         run: |
-          echo "## QuizBot V2 Run Complete" >> $GITHUB_STEP_SUMMARY
+          echo "## ViralShorts Factory - Run Complete" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "**Time:** $(date -u)" >> $GITHUB_STEP_SUMMARY
-          echo "**Generator:** V2 Professional" >> $GITHUB_STEP_SUMMARY
           echo "**Videos Generated:** ${{ github.event.inputs.batch_size || '3' }}" >> $GITHUB_STEP_SUMMARY
           echo "**Test Mode:** ${{ github.event.inputs.test_only || 'false' }}" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "### Features Used" >> $GITHUB_STEP_SUMMARY
-          echo "- Professional gradient themes" >> $GITHUB_STEP_SUMMARY
-          echo "- Dynamic visual effects" >> $GITHUB_STEP_SUMMARY
-          echo "- Viral hook text" >> $GITHUB_STEP_SUMMARY
-          echo "- Animated countdown" >> $GITHUB_STEP_SUMMARY
-          echo "- Call-to-action overlay" >> $GITHUB_STEP_SUMMARY
+          echo "### Features" >> $GITHUB_STEP_SUMMARY
+          echo "- AI-matched B-roll (topic-specific)" >> $GITHUB_STEP_SUMMARY
+          echo "- Dynamic background music" >> $GITHUB_STEP_SUMMARY  
           echo "- Trending content integration" >> $GITHUB_STEP_SUMMARY
+          echo "- Multiple video types support" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "Channel: https://www.youtube.com/channel/UC4Y6O0ubwl0_ZQsLq2EteTQ" >> $GITHUB_STEP_SUMMARY
