@@ -16,8 +16,9 @@ pydub>=0.25.1
 # Async support
 aiofiles>=23.0.0
 
-# AI Content Generation (Groq - FREE)
+# AI Content Generation (MULTI-PROVIDER - All FREE!)
 groq>=0.4.0
+google-generativeai>=0.3.0
 
 # YouTube upload
 google-api-python-client>=2.100.0

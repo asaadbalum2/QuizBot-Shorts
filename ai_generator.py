@@ -1,12 +1,14 @@
 #!/usr/bin/env python3
 """
-AI-Powered Question Generator using Groq (FREE LLM API)
-Generates viral "Would You Rather" questions using AI
+AI-Powered Question Generator - MULTI-PROVIDER (Groq + Gemini)
+Generates viral "Would You Rather" questions using multiple FREE AI APIs
+Maximizes free tier usage across providers!
 """
 
 import os
 import json
 import random
+import time
 from typing import List, Dict, Optional
 
 try:
@@ -15,6 +17,12 @@ try:
 except ImportError:
     GROQ_AVAILABLE = False
 
+try:
+    import google.generativeai as genai
+    GEMINI_AVAILABLE = True
+except ImportError:
+    GEMINI_AVAILABLE = False
+
 
 def get_groq_client():
     """Get Groq client if available."""
@@ -22,6 +30,48 @@ def get_groq_client():
     if not api_key or not GROQ_AVAILABLE:
         return None
     return Groq(api_key=api_key)
+
+
+def get_gemini_model():
+    """Get Gemini model if available."""
+    api_key = os.environ.get('GEMINI_API_KEY')
+    if not api_key or not GEMINI_AVAILABLE:
+        return None
+    try:
+        genai.configure(api_key=api_key)
+        return genai.GenerativeModel('gemini-1.5-flash')
+    except Exception as e:
+        print(f"⚠️ Gemini init failed: {e}")
+        return None
+
+
+def generate_with_gemini(prompt: str, count: int = 10) -> List[Dict]:
+    """Generate questions using Google Gemini."""
+    model = get_gemini_model()
+    if not model:
+        return []
+    
+    try:
+        full_prompt = f"""{prompt}
+
+Generate {count} questions. Return ONLY a valid JSON array, no markdown:
+[{{"option_a": "...", "option_b": "...", "percentage_a": 50}}]"""
+        
+        response = model.generate_content(full_prompt)
+        content = response.text.strip()
+        
+        # Clean up response
+        if content.startswith("```"):
+            content = content.split("```")[1]
+            if content.startswith("json"):
+                content = content[4:]
+        
+        questions = json.loads(content)
+        print(f"✅ Gemini generated {len(questions)} questions!")
+        return questions
+    except Exception as e:
+        print(f"⚠️ Gemini generation failed: {e}")
+        return []
 
 
 def generate_viral_questions(count: int = 10, category: str = "general") -> List[Dict]:
@@ -143,38 +193,67 @@ Return ONLY valid JSON array:
 def refresh_questions_file(output_path: str = "questions.json", count: int = 50):
     """
     Refresh the questions.json file with AI-generated questions.
-    Mixes categories for variety.
+    Uses BOTH Groq and Gemini for maximum variety!
+    Maximizes free tier usage across all providers.
     """
-    print("🤖 Generating fresh AI questions...")
+    print("🤖 MAXIMIZED AI Generation - Using all free providers...")
     
     all_questions = []
     
-    # Generate from different categories
+    # ===== GROQ (30 req/min = lots of capacity) =====
+    print("\n📊 Phase 1: Groq AI (Primary)")
     categories = ["general", "money", "superpowers", "social", "tech", "life"]
-    per_category = max(5, count // len(categories))
+    groq_per_category = max(5, (count // 2) // len(categories))
     
     for category in categories:
-        questions = generate_viral_questions(per_category, category)
+        questions = generate_viral_questions(groq_per_category, category)
         all_questions.extend(questions)
-        
-    # Add trending questions
+        time.sleep(0.5)  # Rate limit protection
+    
+    # ===== GEMINI (60 req/min = even more capacity) =====
+    print("\n📊 Phase 2: Google Gemini (High Quality)")
+    gemini_prompts = [
+        "Create unique 'Would You Rather' questions about modern life, technology, and social media",
+        "Generate funny and absurd 'Would You Rather' scenarios that make people laugh",
+        "Create deep philosophical 'Would You Rather' questions about life choices and values",
+        "Generate 'Would You Rather' questions about superpowers, magic, and fantasy scenarios",
+        "Create 'Would You Rather' questions about money, success, and career tradeoffs",
+    ]
+    
+    gemini_per_prompt = max(5, (count // 2) // len(gemini_prompts))
+    for prompt in gemini_prompts:
+        gemini_qs = generate_with_gemini(prompt, gemini_per_prompt)
+        all_questions.extend(gemini_qs)
+        time.sleep(1)  # Rate limit protection
+    
+    # Add trending questions from Groq
     trending = generate_trending_questions()
     all_questions.extend(trending)
     
+    # Deduplicate based on options
+    seen = set()
+    unique_questions = []
+    for q in all_questions:
+        key = (q.get('option_a', '').lower(), q.get('option_b', '').lower())
+        if key not in seen and len(key[0]) > 5 and len(key[1]) > 5:
+            seen.add(key)
+            unique_questions.append(q)
+    
     # Shuffle for variety
-    random.shuffle(all_questions)
+    random.shuffle(unique_questions)
     
     # Take requested count
-    all_questions = all_questions[:count]
+    unique_questions = unique_questions[:count]
     
-    if all_questions:
+    if unique_questions:
         with open(output_path, 'w', encoding='utf-8') as f:
-            json.dump(all_questions, f, indent=2)
-        print(f"✅ Saved {len(all_questions)} questions to {output_path}")
+            json.dump(unique_questions, f, indent=2)
+        print(f"\n✅ MAXIMIZED: Saved {len(unique_questions)} unique questions!")
+        print(f"   📁 Output: {output_path}")
     else:
         print("⚠️ No AI questions generated. Keeping existing file.")
     
-    return all_questions
+    return unique_questions
 
 
 if __name__ == "__main__":

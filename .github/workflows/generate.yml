@@ -50,11 +50,13 @@ jobs:
           curl -L -o assets/backgrounds/abstract_bg.mp4 \
             "https://videos.pexels.com/video-files/856973/856973-hd_1920_1080_30fps.mp4" || true
 
-      - name: Generate AI questions (fresh content)
+      - name: Generate AI questions (MAXIMIZED - 200 questions)
         run: |
-          python ai_generator.py 50
+          echo "🤖 Generating maximum AI content..."
+          python ai_generator.py 200
         env:
           GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
 
       - name: Generate and Upload Videos (3 videos per run)
         run: |
