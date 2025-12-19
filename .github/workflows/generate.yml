@@ -1,4 +1,5 @@
 name: QuizBot V2 - Professional Video Generator
+# Updated: Force workflow refresh
 
 on:
   # Manual trigger for testing
