@@ -35,36 +35,73 @@ class TrendingContentGenerator:
     based on current trends and proven viral formats.
     """
     
-    # CONTENT FILTER - Block disgusting/inappropriate content
-    BANNED_WORDS = [
+    # CONTENT FILTER - Uses AI first, hardcoded as fallback
+    # Hardcoded list is just a FAST first-pass filter
+    BANNED_WORDS_FALLBACK = [
         "vomit", "vomiting", "poop", "pee", "fart", "diarrhea", "toilet",
         "bathroom accident", "wet yourself", "puke", "throw up", "barf",
         "naked", "nude", "sex", "sexual", "porn", "nsfw",
         "kill", "murder", "suicide", "die painfully", "torture",
         "racist", "slur", "hate", "nazi",
-        # Add more as needed
     ]
     
     @classmethod
-    def is_content_appropriate(cls, text: str) -> bool:
-        """Check if content passes the filter."""
+    def is_content_appropriate_ai(cls, text: str) -> bool:
+        """Use AI to check if content is appropriate - smarter than keyword matching."""
+        try:
+            import os
+            from groq import Groq
+            
+            api_key = os.environ.get("GROQ_API_KEY")
+            if not api_key:
+                return cls._is_content_appropriate_fallback(text)
+            
+            client = Groq(api_key=api_key)
+            response = client.chat.completions.create(
+                model="llama-3.3-70b-versatile",
+                messages=[{"role": "user", "content": f"""Is this content appropriate for ALL ages on YouTube?
+Content: "{text}"
+
+Reply with ONLY "YES" or "NO". Nothing else."""}],
+                max_tokens=5,
+                temperature=0
+            )
+            answer = response.choices[0].message.content.strip().upper()
+            return "YES" in answer
+        except Exception as e:
+            print(f"   ⚠️ AI content check failed, using fallback: {e}")
+            return cls._is_content_appropriate_fallback(text)
+    
+    @classmethod
+    def _is_content_appropriate_fallback(cls, text: str) -> bool:
+        """Fast hardcoded fallback when AI is unavailable."""
         text_lower = text.lower()
-        for word in cls.BANNED_WORDS:
+        for word in cls.BANNED_WORDS_FALLBACK:
             if word in text_lower:
                 return False
         return True
     
     @classmethod
+    def is_content_appropriate(cls, text: str) -> bool:
+        """Check if content passes filter - tries AI first, then fallback."""
+        # Fast check first (cheap)
+        if not cls._is_content_appropriate_fallback(text):
+            return False
+        # AI check for edge cases (smart but costs API call)
+        return cls.is_content_appropriate_ai(text)
+    
+    @classmethod
     def filter_questions(cls, questions: List[Dict]) -> List[Dict]:
-        """Filter out inappropriate questions."""
+        """Filter out inappropriate questions using AI + fallback."""
         filtered = []
         for q in questions:
             opt_a = q.get('option_a', '')
             opt_b = q.get('option_b', '')
-            if cls.is_content_appropriate(opt_a) and cls.is_content_appropriate(opt_b):
+            combined = f"{opt_a} {opt_b}"
+            if cls.is_content_appropriate(combined):
                 filtered.append(q)
             else:
-                print(f"   ⚠️ Filtered out inappropriate question: {opt_a[:30]}...")
+                print(f"   ⚠️ Filtered out inappropriate: {opt_a[:30]}...")
         return filtered
     
     # VIRAL question categories - designed to maximize engagement/comments

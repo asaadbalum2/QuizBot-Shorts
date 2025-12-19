@@ -224,3 +224,4 @@ if __name__ == "__main__":
     for name, path in sfx.items():
         print(f"   {name}: {path}")
 
+
