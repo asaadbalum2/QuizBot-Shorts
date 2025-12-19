@@ -87,6 +87,70 @@ VOICE_STYLES = {
 
 # Pexels API for B-roll
 PEXELS_API_KEY = os.environ.get("PEXELS_API_KEY", "")
+GROQ_API_KEY = os.environ.get("GROQ_API_KEY", "")
+
+
+def extract_broll_keywords(text: str) -> List[str]:
+    """Extract relevant visual keywords for B-roll matching using AI."""
+    # First try AI extraction
+    if GROQ_API_KEY:
+        try:
+            from groq import Groq
+            client = Groq(api_key=GROQ_API_KEY)
+            
+            response = client.chat.completions.create(
+                model="llama-3.1-8b-instant",
+                messages=[{
+                    "role": "user",
+                    "content": f"""Extract 3 visual keywords for finding stock video footage for this text:
+"{text}"
+
+Return ONLY a JSON array of 3 keywords like: ["keyword1", "keyword2", "keyword3"]
+Focus on visual/video search terms (places, actions, objects, moods)."""
+                }],
+                temperature=0.3,
+                max_tokens=50
+            )
+            
+            import re
+            content = response.choices[0].message.content
+            match = re.search(r'\[.*\]', content)
+            if match:
+                import json
+                keywords = json.loads(match.group(0))
+                if keywords:
+                    return keywords[:3]
+        except Exception as e:
+            print(f"   ⚠️ AI keyword extraction failed: {e}")
+    
+    # Fallback: Simple keyword extraction
+    text_lower = text.lower()
+    keyword_mappings = {
+        "money": ["money", "wealth"],
+        "rich": ["luxury", "money"],
+        "million": ["money", "success"],
+        "date": ["romance", "couple"],
+        "crush": ["romance", "love"],
+        "interview": ["office", "business"],
+        "job": ["office", "career"],
+        "fly": ["sky", "airplane"],
+        "invisible": ["magic", "abstract"],
+        "superpower": ["superhero", "power"],
+        "embarrass": ["awkward", "funny"],
+        "food": ["food", "cooking"],
+        "travel": ["travel", "adventure"],
+    }
+    
+    found_keywords = []
+    for trigger, keywords in keyword_mappings.items():
+        if trigger in text_lower:
+            found_keywords.extend(keywords)
+    
+    # Default fallback
+    if not found_keywords:
+        found_keywords = ["abstract", "motion", "colorful"]
+    
+    return list(set(found_keywords))[:3]
 
 
 @dataclass
@@ -198,17 +262,17 @@ def create_option_panel_image(width: int, height: int,
                                option_text: str, 
                                label: str,
                                position: str = "top") -> Image.Image:
-    """Create a MODERN, visually appealing option panel with rounded corners and effects."""
-    # Margins for modern look (not edge-to-edge ugly squares)
-    margin_x = 50
-    margin_y = 20
+    """Create GLASSMORPHISM style option panel - NO solid squares, semi-transparent and modern."""
+    # Much larger margins and smaller panel for modern look
+    margin_x = 80
+    margin_y = 40
     inner_width = width - (margin_x * 2)
-    inner_height = height - (margin_y * 2)
-    corner_radius = 40  # Nice rounded corners
+    inner_height = height - (margin_y * 2) - 20
+    corner_radius = 50  # Very rounded corners
     
     img = Image.new('RGBA', (width, height), (0, 0, 0, 0))
     
-    # Create the rounded panel
+    # Create glassmorphism panel (semi-transparent with blur effect)
     panel = Image.new('RGBA', (inner_width, inner_height), (0, 0, 0, 0))
     panel_draw = ImageDraw.Draw(panel)
     
@@ -221,38 +285,45 @@ def create_option_panel_image(width: int, height: int,
         fill=255
     )
     
-    # Create gradient on panel
+    # GLASSMORPHISM: Semi-transparent gradient (lower opacity!)
+    base_alpha = 180  # More transparent (was 240)
     for y in range(inner_height):
         ratio = y / inner_height
         r = int(gradient_colors[0][0] * (1 - ratio) + gradient_colors[1][0] * ratio)
         g = int(gradient_colors[0][1] * (1 - ratio) + gradient_colors[1][1] * ratio)
         b = int(gradient_colors[0][2] * (1 - ratio) + gradient_colors[1][2] * ratio)
-        panel_draw.line([(0, y), (inner_width, y)], fill=(r, g, b, 240))
+        # Fade transparency at edges for blending
+        edge_fade = 1 - (abs(ratio - 0.5) * 0.4)
+        alpha = int(base_alpha * edge_fade)
+        panel_draw.line([(0, y), (inner_width, y)], fill=(r, g, b, alpha))
     
     # Apply rounded corners
     panel.putalpha(mask)
     
-    # Add drop shadow for depth
-    shadow = Image.new('RGBA', (inner_width + 20, inner_height + 20), (0, 0, 0, 0))
-    shadow_draw = ImageDraw.Draw(shadow)
-    shadow_draw.rounded_rectangle(
-        [(10, 10), (inner_width + 9, inner_height + 9)],
-        radius=corner_radius,
-        fill=(0, 0, 0, 100)
+    # Add subtle glow/border instead of drop shadow
+    glow = Image.new('RGBA', (inner_width + 8, inner_height + 8), (0, 0, 0, 0))
+    glow_draw = ImageDraw.Draw(glow)
+    glow_color = (*gradient_colors[0][:3], 100)  # Use primary color for glow
+    glow_draw.rounded_rectangle(
+        [(0, 0), (inner_width + 7, inner_height + 7)],
+        radius=corner_radius + 4,
+        fill=None,
+        outline=glow_color,
+        width=4
     )
-    shadow = shadow.filter(ImageFilter.GaussianBlur(radius=10))
+    glow = glow.filter(ImageFilter.GaussianBlur(radius=6))
     
-    # Paste shadow then panel
-    img.paste(shadow, (margin_x - 10, margin_y), shadow)
-    img.paste(panel, (margin_x, margin_y), panel)
+    # Paste glow then panel
+    img.paste(glow, (margin_x - 4, margin_y + 10 if position == "top" else margin_y), glow)
+    img.paste(panel, (margin_x, margin_y + 10 if position == "top" else margin_y + 5), panel)
     
-    # Add glossy shine effect at top
-    shine = Image.new('RGBA', (inner_width - 20, 40), (0, 0, 0, 0))
-    shine_draw = ImageDraw.Draw(shine)
-    for y in range(40):
-        alpha = int(60 * (1 - y / 40))
-        shine_draw.line([(0, y), (inner_width - 20, y)], fill=(255, 255, 255, alpha))
-    img.paste(shine, (margin_x + 10, margin_y + 5), shine)
+    # Add subtle inner highlight at top
+    highlight = Image.new('RGBA', (inner_width - 40, 30), (0, 0, 0, 0))
+    highlight_draw = ImageDraw.Draw(highlight)
+    for y in range(30):
+        alpha = int(40 * (1 - y / 30))
+        highlight_draw.line([(0, y), (inner_width - 40, y)], fill=(255, 255, 255, alpha))
+    img.paste(highlight, (margin_x + 20, margin_y + 15 if position == "top" else margin_y + 10), highlight)
     
     draw = ImageDraw.Draw(img)
     
@@ -590,19 +661,38 @@ def download_pexels_video(query: str, output_path: str) -> bool:
 
 
 def get_broll_for_question(question: dict) -> Optional[str]:
-    """Get relevant B-roll video for the question."""
-    # FIRST: Check if we have ANY B-roll files already downloaded
+    """Get TOPIC-SPECIFIC B-roll video for the question."""
+    BROLL_DIR.mkdir(parents=True, exist_ok=True)
+    
+    # Extract topic keywords from the question FIRST
+    option_a = question.get("option_a", "")
+    option_b = question.get("option_b", "")
+    text = f"{option_a} {option_b}".lower()
+    
+    # AI-powered keyword extraction for better B-roll matching
+    topic_keywords = extract_broll_keywords(text)
+    print(f"   🎯 Topic keywords: {topic_keywords}")
+    
+    # Try to find/download topic-specific B-roll
+    for keyword in topic_keywords:
+        # Check if we already have this topic cached
+        cache_file = BROLL_DIR / f"{keyword.replace(' ', '_')}.mp4"
+        if cache_file.exists():
+            print(f"   ✅ Using cached B-roll: {cache_file.name}")
+            return str(cache_file)
+        
+        # Try to download topic-specific B-roll
+        if PEXELS_API_KEY:
+            if download_pexels_video(keyword, str(cache_file)):
+                return str(cache_file)
+    
+    # FALLBACK: Use any pre-downloaded generic B-roll
     if BROLL_DIR.exists():
         broll_files = list(BROLL_DIR.glob("*.mp4"))
         if broll_files:
-            # Pick a random one
             chosen = random.choice(broll_files)
-            print(f"   ✅ Using B-roll: {chosen.name}")
+            print(f"   ⚠️ Using generic B-roll (no topic match): {chosen.name}")
             return str(chosen)
-    
-    # Extract keywords from the question
-    option_a = question.get("option_a", "")
-    option_b = question.get("option_b", "")
     
     # Common keyword mappings
     keywords = []

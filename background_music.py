@@ -31,24 +31,39 @@ def get_background_music(mood: str = "fun", duration: float = 45) -> Optional[st
     """
     Fetch background music matching the mood.
     Returns path to downloaded MP3 or None.
+    Tries multiple free sources with fallbacks.
     """
+    print(f"   🎵 Searching for {mood} music...")
+    
     # Check for cached music first
     cached = _get_cached_music(mood)
     if cached:
-        print(f"🎵 Using cached music: {cached}")
+        print(f"   ✅ Using cached music")
         return cached
     
-    # Try Jamendo API
+    # Try Jamendo API (large library, free)
     music_path = _fetch_jamendo_music(mood)
     if music_path:
         return music_path
     
-    # Try Pixabay Music (alternative free source)
+    # Try FreePD (public domain, always works)
+    music_path = _fetch_freepd_music(mood)
+    if music_path:
+        return music_path
+    
+    # Try Pixabay Music (if API key available)
     music_path = _fetch_pixabay_music(mood)
     if music_path:
         return music_path
     
-    print("⚠️ No background music available")
+    # Last resort: Use any cached music
+    all_cached = list(MUSIC_DIR.glob("**/*.mp3"))
+    if all_cached:
+        chosen = random.choice(all_cached)
+        print(f"   ⚠️ Using fallback music: {chosen.name}")
+        return str(chosen)
+    
+    print("   ⚠️ No background music available")
     return None
 
 
@@ -69,59 +84,82 @@ def _get_cached_music(mood: str) -> Optional[str]:
 
 
 def _fetch_jamendo_music(mood: str) -> Optional[str]:
-    """Fetch music from Jamendo API."""
-    try:
-        tags = MOOD_TAGS.get(mood, MOOD_TAGS["default"])
-        
-        params = {
-            "client_id": JAMENDO_CLIENT_ID,
-            "format": "json",
-            "limit": 20,
-            "tags": "+".join(tags[:2]),
-            "order": "popularity_week",  # Trending this week
-            "audioformat": "mp32",
-            "include": "musicinfo",
-            "speed": "90_160"  # Mid-tempo for shorts
-        }
-        
-        response = requests.get(
-            f"{JAMENDO_BASE_URL}/tracks",
-            params=params,
-            timeout=15
-        )
-        
-        if response.status_code == 200:
-            data = response.json()
-            tracks = data.get("results", [])
+    """Fetch music from Jamendo API with multiple fallback strategies."""
+    tags_to_try = [
+        MOOD_TAGS.get(mood, MOOD_TAGS["default"]),
+        ["instrumental", "background"],
+        ["electronic", "ambient"],
+        ["pop", "happy"]
+    ]
+    
+    for tags in tags_to_try:
+        try:
+            params = {
+                "client_id": JAMENDO_CLIENT_ID,
+                "format": "json",
+                "limit": 30,
+                "tags": "+".join(tags[:2]),
+                "order": "popularity_total",  # Most popular overall
+                "audioformat": "mp32",
+            }
             
-            if tracks:
-                # Pick from top 5 trending
-                track = random.choice(tracks[:min(5, len(tracks))])
-                audio_url = track.get("audio", "")
+            response = requests.get(
+                f"{JAMENDO_BASE_URL}/tracks",
+                params=params,
+                timeout=15
+            )
+            
+            if response.status_code == 200:
+                data = response.json()
+                tracks = data.get("results", [])
                 
-                if audio_url:
-                    return _download_music(
-                        audio_url,
-                        f"jamendo_{track.get('id', 'unknown')}",
-                        mood
-                    )
-        
-        # Fallback: try instrumental/ambient
-        params["tags"] = "instrumental+ambient"
-        response = requests.get(f"{JAMENDO_BASE_URL}/tracks", params=params, timeout=15)
-        if response.status_code == 200:
-            data = response.json()
-            tracks = data.get("results", [])
-            if tracks:
-                track = random.choice(tracks[:5])
-                audio_url = track.get("audio", "")
-                if audio_url:
-                    return _download_music(audio_url, f"jamendo_{track.get('id')}", mood)
-        
-        return None
-        
-    except Exception as e:
-        print(f"⚠️ Jamendo API error: {e}")
+                if tracks:
+                    track = random.choice(tracks[:min(10, len(tracks))])
+                    audio_url = track.get("audio", "")
+                    
+                    if audio_url:
+                        result = _download_music(
+                            audio_url,
+                            f"jamendo_{track.get('id', 'unknown')}",
+                            mood
+                        )
+                        if result:
+                            print(f"   🎵 Got music: {track.get('name', 'Unknown')}")
+                            return result
+        except Exception as e:
+            continue
+    
+    print(f"⚠️ Jamendo API failed for all tag combinations")
+    return None
+
+
+def _fetch_freepd_music(mood: str) -> Optional[str]:
+    """Fetch music from FreePD (truly free public domain music)."""
+    # FreePD categories - all public domain, no attribution needed
+    mood_to_genre = {
+        "fun": "upbeat",
+        "dramatic": "epic",
+        "energetic": "electronic",
+        "chill": "ambient",
+        "default": "misc"
+    }
+    
+    genre = mood_to_genre.get(mood, "misc")
+    
+    # Known working FreePD tracks (public domain)
+    freepd_tracks = {
+        "upbeat": "https://freepd.com/music/Happy%20Fun%20Times.mp3",
+        "epic": "https://freepd.com/music/Epic%20Cinematic.mp3",
+        "electronic": "https://freepd.com/music/Synthwave%20Beat.mp3",
+        "ambient": "https://freepd.com/music/Ambient%20Background.mp3",
+        "misc": "https://freepd.com/music/Background%20Music.mp3"
+    }
+    
+    url = freepd_tracks.get(genre, freepd_tracks["misc"])
+    
+    try:
+        return _download_music(url, f"freepd_{genre}", mood)
+    except:
         return None
 
 
