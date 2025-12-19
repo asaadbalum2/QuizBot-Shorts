@@ -881,17 +881,32 @@ async def generate_video_v2(question: dict, output_filename: str = None) -> str:
     
     print(f"🎥 Rendering to {output_path}...")
     
-    # Render with better quality settings
-    final_video.write_videofile(
-        str(output_path),
-        fps=VIDEO_FPS,
-        codec='libx264',
-        audio_codec='aac',
-        preset='medium',  # Better quality than ultrafast
-        bitrate='5000k',  # Higher bitrate
-        threads=4,
-        logger='bar' if sys.stdout.isatty() else None
-    )
+    # HIGH QUALITY export settings (from YShortsGen)
+    try:
+        final_video.write_videofile(
+            str(output_path),
+            fps=VIDEO_FPS,
+            codec='libx264',
+            audio_codec='aac',
+            preset='medium',
+            bitrate='12000k',  # High quality bitrate
+            audio_bitrate='256k',  # Better audio
+            ffmpeg_params=['-crf', '20', '-pix_fmt', 'yuv420p'],  # Quality settings
+            threads=4,
+            logger='bar' if sys.stdout.isatty() else None
+        )
+    except Exception as e:
+        print(f"⚠️ High-quality export failed, trying fallback: {e}")
+        final_video.write_videofile(
+            str(output_path),
+            fps=VIDEO_FPS,
+            codec='libx264',
+            audio_codec='aac',
+            preset='fast',
+            bitrate='6000k',
+            threads=4,
+            logger=None
+        )
     
     # Cleanup
     if os.path.exists(voiceover_path):
