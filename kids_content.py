@@ -9,6 +9,11 @@ Types:
 3. Animal sounds & facts
 4. Simple quiz games
 5. Nursery rhyme visuals
+
+NOTE: This module uses a HYBRID approach:
+- Core educational concepts (ABC, 123, animals) are stable and don't need AI
+- HOWEVER, the themes and seasonal elements ARE AI-driven via ai_trend_fetcher
+- Example: "Count snowflakes" in winter, "Count flowers" in spring
 """
 
 import os
@@ -144,6 +149,35 @@ class KidsContentGenerator:
             "quiz",
             "abc",
         ]
+        
+        # Try to get AI-powered seasonal themes
+        self.seasonal_themes = self._get_seasonal_themes()
+    
+    def _get_seasonal_themes(self) -> dict:
+        """Get AI-powered seasonal themes for kids content."""
+        try:
+            from ai_trend_fetcher import AITrendFetcher
+            fetcher = AITrendFetcher()
+            kids_topics = fetcher.get_kids_trending_topics(2)
+            if kids_topics:
+                return {"ai_topics": kids_topics, "use_ai": True}
+        except:
+            pass
+        
+        # Fallback to seasonal defaults (still dynamic based on month!)
+        from datetime import datetime
+        month = datetime.now().month
+        
+        seasonal = {
+            12: {"theme": "winter", "items": ["❄️ Snowflake", "🎄 Tree", "⭐ Star", "🎁 Gift"]},
+            1: {"theme": "new_year", "items": ["🎉 Confetti", "⏰ Clock", "📅 Calendar"]},
+            2: {"theme": "valentine", "items": ["❤️ Heart", "💝 Gift", "🌹 Rose"]},
+            3: {"theme": "spring", "items": ["🌸 Flower", "🦋 Butterfly", "🐰 Bunny"]},
+            4: {"theme": "easter", "items": ["🥚 Egg", "🐣 Chick", "🐰 Bunny"]},
+            10: {"theme": "halloween", "items": ["🎃 Pumpkin", "👻 Ghost", "🦇 Bat"]},
+        }
+        
+        return seasonal.get(month, {"theme": "fun", "items": ["⭐ Star", "🌈 Rainbow"]})
     
     def generate_counting_video(self) -> Dict:
         """Generate a counting video script."""

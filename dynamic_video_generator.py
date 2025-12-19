@@ -75,9 +75,16 @@ class DynamicVideoGenerator:
     """Generate videos with per-phrase B-roll changes and VALUE-FIRST content."""
     
     def __init__(self):
+        # Get API keys from environment
         self.pexels_key = os.environ.get("PEXELS_API_KEY")
         self.groq_key = os.environ.get("GROQ_API_KEY")
         self.value_checker = ValueDeliveryChecker() if HAS_DEPS else None
+        
+        # Validate Pexels key on init
+        if self.pexels_key:
+            print(f"   ✅ Pexels API key configured (length: {len(self.pexels_key)})")
+        else:
+            print(f"   ⚠️ No Pexels API key - will use gradient backgrounds")
     
     def validate_content_value(self, content: str) -> Dict:
         """
@@ -366,7 +373,22 @@ Return ONLY a JSON array of keywords, one per phrase:
         
         hook = strip_emojis(topic.get("hook", ""))
         content = strip_emojis(topic.get("content", ""))
-        full_content = f"{hook} {content}"
+        
+        # IMPORTANT: Check if hook is already included in content to avoid duplication!
+        # This was causing the "phrase repeated twice" issue
+        hook_words = hook.lower().split()[:5]  # First 5 words of hook
+        content_start = content.lower()[:100]  # First 100 chars of content
+        
+        # Check if content already starts with the hook
+        hook_already_in_content = all(word in content_start for word in hook_words if len(word) > 3)
+        
+        if hook_already_in_content:
+            # Hook is already part of content, use content only
+            full_content = content
+            print(f"   ℹ️ Hook already in content, using content only")
+        else:
+            # Hook is separate, combine them
+            full_content = f"{hook}. {content}"
         
         # VALUE CHECK: Ensure we're not making empty-promise content
         value_result = self.validate_content_value(full_content)

@@ -3,22 +3,45 @@
 ViralShorts Factory - Dailymotion Uploader
 FULLY AUTONOMOUS video upload to Dailymotion.
 
-Dailymotion has a FREE public API - no special approval needed!
+=============================================================================
+DAILYMOTION SHORTS SUPPORT - WHAT YOU NEED TO KNOW
+=============================================================================
 
-Setup:
+Q: Does Dailymotion have "Shorts" like YouTube/TikTok?
+A: Sort of! Dailymotion supports vertical videos (9:16 aspect ratio) but doesn't
+   have a dedicated "Shorts" section like YouTube. However:
+   
+   - Vertical videos ARE supported and play well on mobile
+   - Short videos (< 60 seconds) work fine
+   - They get good visibility on mobile app
+   - Same content can be uploaded as YouTube/TikTok
+
+Q: Should we upload the same content as YouTube?
+A: YES! The same vertical short videos work on Dailymotion. Benefits:
+   - More reach with same content
+   - Dailymotion has ~400M monthly users
+   - Lower competition than YouTube
+   - Monetization available
+
+Q: Daily upload limits?
+A: Free tier: ~50 uploads per day (more than enough!)
+
+=============================================================================
+SETUP INSTRUCTIONS
+=============================================================================
+
 1. Create account at dailymotion.com
 2. Go to: https://www.dailymotion.com/settings/developer
 3. Create an API Key
-4. Set environment variables:
-   - DAILYMOTION_API_KEY
-   - DAILYMOTION_API_SECRET
-   - DAILYMOTION_USERNAME
-   - DAILYMOTION_PASSWORD
+4. Set GitHub Secrets:
+   - DAILYMOTION_API_KEY (client ID)
+   - DAILYMOTION_API_SECRET (client secret)
+   - DAILYMOTION_USERNAME (your login email)
+   - DAILYMOTION_PASSWORD (your password)
 
-Limits:
-- Free tier: ~50 uploads per day
-- Video size: Up to 4GB
-- Video length: Up to 60 minutes
+Note: API key and secret are already set! You just need to add:
+- DAILYMOTION_USERNAME
+- DAILYMOTION_PASSWORD
 """
 
 import os

@@ -100,11 +100,15 @@ CTA (2 sec): Question that makes them reflect/comment
 
 Generate {count} video ideas. For EACH video:
 
+CRITICAL: The "hook" and "content" are SEPARATE! Do NOT repeat the hook inside the content!
+- hook = The opening attention-grabber (spoken first)
+- content = The rest of the video (spoken after the hook)
+
 {{
     "topic": "2-4 word topic name",
     "video_type": "scary_fact|money_fact|psychology_fact|life_hack|mind_blow",
-    "hook": "7-10 word attention grabber with SPECIFIC CLAIM - NO EMOJIS",
-    "content": "COMPLETE content that DELIVERS VALUE. Include: 1) The specific claim with numbers, 2) The mechanism/evidence, 3) The actionable takeaway. 60-100 words. NO EMOJIS.",
+    "hook": "7-10 word attention grabber - this is spoken FIRST - NO EMOJIS",
+    "content": "The REST of the video AFTER the hook. Do NOT repeat the hook here! Include: mechanism/evidence, actionable takeaway. 50-80 words. NO EMOJIS.",
     "the_payoff": "The ONE specific thing they learn/can do after watching",
     "call_to_action": "Reflective question that drives comments",
     "broll_keywords": ["specific visual 1", "specific visual 2", "specific visual 3", "specific visual 4"],
@@ -295,21 +299,39 @@ class GodTierContentGenerator:
             return None
     
     def generate_viral_topics(self, count: int = 3) -> List[Dict]:
-        """Generate viral topic ideas using god-tier prompt."""
+        """
+        Generate viral topic ideas using god-tier prompt.
+        
+        IMPORTANT: Uses AI to determine what's trending - NO HARDCODED TOPICS!
+        """
+        # Use the AI Trend Fetcher for truly dynamic content
+        try:
+            from ai_trend_fetcher import AITrendFetcher
+            fetcher = AITrendFetcher()
+            topics = fetcher.fetch_trending_topics(count)
+            
+            if topics:
+                print(f"✅ Got {len(topics)} trending topics from AI Trend Fetcher")
+                return topics
+        except Exception as e:
+            print(f"⚠️ AI Trend Fetcher unavailable: {e}")
+        
+        # Fallback: Use the prompt system but let AI determine trends
         now = datetime.now()
         
-        # Determine context
+        # DYNAMIC season context (no hardcoded topics!)
         month = now.month
         if month in [12, 1, 2]:
-            season = "winter - holiday themes, new year goals, cozy content"
+            season = "winter"
         elif month in [3, 4, 5]:
-            season = "spring - fresh starts, outdoor activities, allergies"
+            season = "spring"
         elif month in [6, 7, 8]:
-            season = "summer - vacation, heat, freedom, adventure"
+            season = "summer"
         else:
-            season = "fall - back to school, Halloween approaching, cozy vibes"
+            season = "fall"
         
-        trending = "AI technology, economic uncertainty, self-improvement, mental health awareness, conspiracy theories, financial tips"
+        # Let AI figure out what's trending - NO HARDCODED LIST
+        trending = "USE YOUR KNOWLEDGE to determine what topics are currently trending and relevant"
         
         prompt = VIRAL_TOPIC_PROMPT.format(
             date=now.strftime("%B %d, %Y"),
