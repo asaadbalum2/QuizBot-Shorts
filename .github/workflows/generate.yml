@@ -8,6 +8,22 @@ on:
         description: 'Number of videos to generate'
         required: false
         default: '1'
+      test_only:
+        description: 'Test mode - generate but DO NOT upload (saves quota)'
+        required: false
+        default: 'false'
+        type: choice
+        options:
+          - 'false'
+          - 'true'
+      skip_delay:
+        description: 'Skip random delay (for testing)'
+        required: false
+        default: 'false'
+        type: choice
+        options:
+          - 'false'
+          - 'true'
   
   # Scheduled runs - MAXIMIZED (6 times per day)
   schedule:
@@ -25,6 +41,7 @@ jobs:
 
     steps:
       - name: Random delay for stealth (0-45 min)
+        if: github.event.inputs.skip_delay != 'true'
         run: |
           DELAY=$((RANDOM % 2700))
           echo "⏱️ Waiting $DELAY seconds ($(($DELAY / 60)) minutes) for randomization..."
@@ -69,10 +86,17 @@ jobs:
       - name: Generate and Upload Videos
         run: |
           BATCH_SIZE="${{ github.event.inputs.batch_size || '3' }}"
-          echo "🎬 Generating $BATCH_SIZE videos..."
-          python script.py --batch $BATCH_SIZE --upload
+          TEST_ONLY="${{ github.event.inputs.test_only || 'false' }}"
+          
+          if [ "$TEST_ONLY" = "true" ]; then
+            echo "🧪 TEST MODE - Generating $BATCH_SIZE videos WITHOUT upload..."
+            python script.py --batch $BATCH_SIZE --no-upload
+          else
+            echo "🎬 Generating $BATCH_SIZE videos WITH upload..."
+            python script.py --batch $BATCH_SIZE --upload
+          fi
         env:
-          AUTO_UPLOAD: "true"
+          AUTO_UPLOAD: ${{ github.event.inputs.test_only != 'true' }}
           YOUTUBE_CLIENT_ID: ${{ secrets.YOUTUBE_CLIENT_ID }}
           YOUTUBE_CLIENT_SECRET: ${{ secrets.YOUTUBE_CLIENT_SECRET }}
           YOUTUBE_REFRESH_TOKEN: ${{ secrets.YOUTUBE_REFRESH_TOKEN }}
