@@ -62,6 +62,13 @@ try:
 except ImportError:
     HAS_AI_TRENDS = False
 
+# Import god-tier prompts
+try:
+    from god_tier_prompts import GodTierContentGenerator, strip_emojis as strip_emojis_godtier
+    HAS_GOD_TIER = True
+except ImportError:
+    HAS_GOD_TIER = False
+
 
 # Output directory
 OUTPUT_DIR = Path("./output")
@@ -99,11 +106,19 @@ async def generate_fact_video(content: VideoContent, output_path: str) -> bool:
         # Calculate timing
         total_duration = max(duration + 5, 15)  # At least 15 seconds
         
-        # Get B-roll
-        broll_clips = get_multiple_broll_clips(
-            {"option_a": content.main_text, "option_b": ""},
-            count=3
-        )
+        # Get B-roll using SPECIFIC keywords from content (not generic extraction)
+        # Use the broll_keywords from the content directly
+        if content.broll_keywords and len(content.broll_keywords) >= 3:
+            print(f"   🎯 Using specific B-roll keywords: {content.broll_keywords}")
+            broll_clips = get_multiple_broll_clips(
+                {"option_a": " ".join(content.broll_keywords), "option_b": ""},
+                count=3
+            )
+        else:
+            broll_clips = get_multiple_broll_clips(
+                {"option_a": content.main_text, "option_b": ""},
+                count=3
+            )
         
         # Create background - FIX: Avoid abrupt B-roll swaps at end
         if broll_clips:
@@ -532,21 +547,66 @@ async def main():
     
     generated = 0
     
-    # AI MODE - Let AI decide everything
-    if args.type == "ai" and HAS_AI_TRENDS:
-        print("\n🤖 AI Mode: Letting AI decide what videos to create...")
+    # AI MODE - Use GOD-TIER prompts for best results
+    if args.type == "ai":
+        print("\n🧠 GOD-TIER AI Mode: Maximum viral potential...")
         
-        ai_topics = get_multiple_ai_suggestions(args.count)
-        
-        for i, topic in enumerate(ai_topics, 1):
-            print(f"\n📹 Video {i}/{args.count}")
-            print(f"   🎯 AI Topic: {topic.topic}")
-            print(f"   📊 Type: {topic.video_type}")
-            print(f"   💡 Reason: {topic.reason}")
+        if HAS_GOD_TIER:
+            gen = GodTierContentGenerator()
+            # Initialize client
+            import os as os_module
+            api_key = os_module.environ.get("GROQ_API_KEY")
+            if api_key:
+                try:
+                    from groq import Groq
+                    gen.client = Groq(api_key=api_key)
+                except:
+                    pass
             
-            success = await generate_from_ai_topic(topic)
-            if success:
-                generated += 1
+            if gen.client:
+                topics = gen.generate_viral_topics(args.count)
+                
+                for i, topic in enumerate(topics, 1):
+                    print(f"\n📹 Video {i}/{args.count}")
+                    print(f"   🎯 Topic: {topic.get('topic', 'N/A')}")
+                    print(f"   📊 Type: {topic.get('video_type', 'N/A')}")
+                    print(f"   🧠 Triggers: {topic.get('psychological_triggers', [])}")
+                    print(f"   🎬 B-roll: {topic.get('broll_keywords', [])}")
+                    print(f"   💡 Why viral: {topic.get('why_viral', 'N/A')}")
+                    
+                    # Convert to VideoContent
+                    content = VideoContent(
+                        video_type=VideoType.SCARY_FACTS,
+                        title=strip_emojis(topic.get("topic", "")),
+                        hook=strip_emojis(topic.get("hook", "")),
+                        main_text=strip_emojis(topic.get("content", "")),
+                        secondary_text=topic.get("call_to_action"),
+                        voiceover_script=strip_emojis(f"{topic.get('hook', '')} {topic.get('content', '')}"),
+                        broll_keywords=topic.get("broll_keywords", []),
+                        music_mood=topic.get("music_mood", "dramatic")
+                    )
+                    
+                    output_path = str(OUTPUT_DIR / f"viral_{topic.get('video_type', 'fact')}_{random.randint(1000, 9999)}.mp4")
+                    success = await generate_fact_video(content, output_path)
+                    if success:
+                        generated += 1
+            else:
+                print("⚠️ No AI client, falling back to basic AI trends")
+                # Fallback to old method
+                if HAS_AI_TRENDS:
+                    ai_topics = get_multiple_ai_suggestions(args.count)
+                    for i, topic in enumerate(ai_topics, 1):
+                        success = await generate_from_ai_topic(topic)
+                        if success:
+                            generated += 1
+        else:
+            print("⚠️ God-tier prompts not available, using basic AI")
+            if HAS_AI_TRENDS:
+                ai_topics = get_multiple_ai_suggestions(args.count)
+                for i, topic in enumerate(ai_topics, 1):
+                    success = await generate_from_ai_topic(topic)
+                    if success:
+                        generated += 1
     
     else:
         # Manual mode - use specified type
