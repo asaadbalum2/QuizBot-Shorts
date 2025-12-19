@@ -696,8 +696,17 @@ async def generate_video_v2(question: dict, output_filename: str = None) -> str:
     print(f"   A: {option_a}")
     print(f"   B: {option_b}")
     
-    # Short but engaging voiceover (Edge-TTS has length limits)
-    # Keep it simple but add dramatic pauses with "..."
+    # Hook phrases for visual display
+    hooks = [
+        "THIS IS IMPOSSIBLE!",
+        "CHOOSE WISELY!",
+        "NO ONE AGREES!",
+        "THINK FAST!",
+        "CAN'T DECIDE?",
+    ]
+    hook = random.choice(hooks)
+    
+    # Short voiceover (Edge-TTS has length limits)
     voiceover_templates = [
         f"Would you rather... {option_a}... OR... {option_b}? Comment your choice!",
         f"This is impossible! Would you rather... {option_a}... OR... {option_b}?",
