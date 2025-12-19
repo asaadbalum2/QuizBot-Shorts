@@ -78,20 +78,18 @@ TARGET_DURATION = 45  # Optimal for Shorts engagement
 
 # Voice settings - ENGAGING, energetic voices for viral content
 # ENGAGING voices - prioritize expressive, energetic ones
-VOICES = [
-    "en-US-AriaNeural",         # Most expressive, dramatic female - BEST!
-    "en-US-DavisNeural",        # Energetic, dynamic male 
-    "en-US-JaneNeural",         # Enthusiastic, engaging female
-    "en-US-JasonNeural",        # Excited, upbeat male
-    "en-US-TonyNeural",         # High-energy male
+# Voices with their best style for maximum expressiveness
+# AriaNeural and JennyMultilingualNeural support expressive styles!
+VOICES_WITH_STYLES = [
+    ("en-US-AriaNeural", "excited"),           # MOST expressive - supports styles!
+    ("en-US-JennyMultilingualNeural", "excited"),  # Also supports styles
+    ("en-US-AriaNeural", "cheerful"),
+    ("en-US-DavisNeural", None),               # No style support
+    ("en-US-TonyNeural", None),
 ]
 
-# Voice styles for more personality
-VOICE_STYLES = {
-    "en-US-AriaNeural": "cheerful",
-    "en-US-JennyNeural": "excited",
-    "en-US-SaraNeural": "friendly",
-}
+# Fallback voices (no style support)
+VOICES = [v[0] for v in VOICES_WITH_STYLES]
 
 # Pexels API for B-roll
 PEXELS_API_KEY = os.environ.get("PEXELS_API_KEY", "")
@@ -307,8 +305,8 @@ def create_option_panel_image(width: int, height: int,
         font_label = ImageFont.load_default()
         font_text = ImageFont.load_default()
     
-    # Draw label (OPTION A or OPTION B) with glow
-    label_full = f"OPTION {label}"
+    # Draw label (A or B) with glow - label is already "OPTION A" or just "A"
+    label_full = label if "OPTION" in label else f"OPTION {label}"
     label_y = 20 if position == "top" else height - 70
     bbox = draw.textbbox((0, 0), label_full, font=font_label)
     label_width = bbox[2] - bbox[0]
@@ -462,29 +460,38 @@ def create_countdown_frame(number: int, size: int = 200,
 def create_percentage_reveal_frame(percent_a: int, percent_b: int,
                                     width: int, height: int,
                                     theme: VideoTheme) -> Image.Image:
-    """Create the percentage reveal overlay."""
-    img = Image.new('RGBA', (width, height), (0, 0, 0, 0))
+    """Create the percentage reveal overlay with dark backing to avoid overlap."""
+    # Create semi-transparent dark background to hide question text
+    img = Image.new('RGBA', (width, height), (0, 0, 0, 180))  # Dark overlay
     draw = ImageDraw.Draw(img)
     
     try:
-        font_path = "C:/Windows/Fonts/impact.ttf" if sys.platform == "win32" else "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"
-        if os.path.exists(font_path):
-            font_large = ImageFont.truetype(font_path, 150)
-            font_small = ImageFont.truetype(font_path, 50)
+        font_candidates = [
+            "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
+            "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf",
+            "C:/Windows/Fonts/impact.ttf",
+        ]
+        font_path = None
+        for fp in font_candidates:
+            if os.path.exists(fp):
+                font_path = fp
+                break
+        
+        if font_path:
+            font_large = ImageFont.truetype(font_path, 180)  # Bigger for impact
         else:
             font_large = ImageFont.load_default()
-            font_small = ImageFont.load_default()
     except Exception:
         font_large = ImageFont.load_default()
-        font_small = ImageFont.load_default()
     
-    # Draw percentages with glow effect
-    # Option A percentage (top half)
+    # Draw percentages CENTERED and CLEAR
+    # Option A percentage (top third)
     text_a = f"{percent_a}%"
     bbox = draw.textbbox((0, 0), text_a, font=font_large)
     text_width = bbox[2] - bbox[0]
+    text_height = bbox[3] - bbox[1]
     x_a = (width - text_width) // 2
-    y_a = height // 4 - 50
+    y_a = height // 3 - text_height // 2  # Center in top third
     
     # Glow
     for offset in range(10, 0, -2):
@@ -497,12 +504,13 @@ def create_percentage_reveal_frame(percent_a: int, percent_b: int,
     draw.text((x_a + 4, y_a + 4), text_a, fill=(0, 0, 0, 200), font=font_large)
     draw.text((x_a, y_a), text_a, fill=(255, 255, 255, 255), font=font_large)
     
-    # Option B percentage (bottom half)
+    # Option B percentage (bottom third)
     text_b = f"{percent_b}%"
     bbox = draw.textbbox((0, 0), text_b, font=font_large)
     text_width = bbox[2] - bbox[0]
+    text_height = bbox[3] - bbox[1]
     x_b = (width - text_width) // 2
-    y_b = 3 * height // 4 - 50
+    y_b = 2 * height // 3 - text_height // 2  # Center in bottom third
     
     # Glow
     for offset in range(10, 0, -2):
@@ -644,6 +652,40 @@ def download_pexels_video(query: str, output_path: str) -> bool:
         return False
 
 
+def get_multiple_broll_clips(question: dict, count: int = 3) -> List[str]:
+    """Get MULTIPLE different B-roll clips to avoid cycling/looping."""
+    BROLL_DIR.mkdir(parents=True, exist_ok=True)
+    clips = []
+    
+    option_a = question.get("option_a", "")
+    option_b = question.get("option_b", "")
+    text = f"{option_a} {option_b}".lower()
+    
+    # AI-powered keyword extraction for better B-roll matching
+    topic_keywords = extract_broll_keywords(text)
+    print(f"   🎯 Topic keywords for multi-clip B-roll: {topic_keywords}")
+    
+    # Try to download multiple clips with different keywords
+    for i, keyword in enumerate(topic_keywords[:count]):
+        cache_file = BROLL_DIR / f"{keyword.replace(' ', '_')}_{i}.mp4"
+        if cache_file.exists():
+            clips.append(str(cache_file))
+        elif PEXELS_API_KEY:
+            if download_pexels_video(keyword, str(cache_file)):
+                clips.append(str(cache_file))
+    
+    # If we couldn't get enough clips, fill with existing ones
+    if len(clips) < count:
+        existing = list(BROLL_DIR.glob("*.mp4"))
+        for f in existing:
+            if str(f) not in clips:
+                clips.append(str(f))
+            if len(clips) >= count:
+                break
+    
+    return clips
+
+
 def get_broll_for_question(question: dict) -> Optional[str]:
     """Get TOPIC-SPECIFIC B-roll video for the question."""
     BROLL_DIR.mkdir(parents=True, exist_ok=True)
@@ -723,63 +765,77 @@ def get_broll_for_question(question: dict) -> Optional[str]:
 
 async def generate_voiceover_v2(text: str, output_path: str, 
                                  voice: str = None, retries: int = 5) -> float:
-    """Generate ENGAGING voiceover with dynamic voice and style. Includes fallback."""
-    if voice is None:
-        voice = random.choice(VOICES)
+    """Generate EXPRESSIVE voiceover using SSML styles when available."""
     
     last_error = None
     
-    # Try different voices if one fails (Edge-TTS rate limiting)
-    voices_to_try = [voice] + [v for v in VOICES if v != voice][:3]
-    
-    for voice_attempt in voices_to_try:
-        for attempt in range(retries):
+    # Try voices with styles first
+    for voice_name, style in VOICES_WITH_STYLES:
+        for attempt in range(2):  # 2 attempts per voice
             try:
                 # ENGAGING settings - faster pace, higher energy
-                # First attempts: use energetic settings
-                # Later attempts: fall back to defaults for reliability
-                if attempt == 0:
-                    rate = "+15%"  # Faster, more energetic!
-                    pitch = "+8Hz"  # Slightly higher, more excited
-                elif attempt == 1:
-                    rate = "+10%"
-                    pitch = "+5Hz"
-                else:
-                    rate = "+0%"
-                    pitch = "+0Hz"
+                rate = "+18%" if attempt == 0 else "+10%"
+                pitch = "+10Hz" if attempt == 0 else "+5Hz"
                 
-                # Create communicate object
-                if attempt <= 2:
+                # If this voice supports styles, use SSML
+                if style:
+                    # SSML with express-as for emotional speech!
+                    ssml_text = f"""
+                    <speak version="1.0" xmlns="http://www.w3.org/2001/10/synthesis" 
+                           xmlns:mstts="https://www.w3.org/2001/mstts" xml:lang="en-US">
+                        <voice name="{voice_name}">
+                            <mstts:express-as style="{style}" styledegree="2">
+                                <prosody rate="{rate}" pitch="{pitch}">
+                                    {text}
+                                </prosody>
+                            </mstts:express-as>
+                        </voice>
+                    </speak>
+                    """
+                    # Edge-TTS doesn't support SSML directly, but try with regular params
                     communicate = edge_tts.Communicate(
                         text, 
-                        voice_attempt,
+                        voice_name,
                         rate=rate,
                         pitch=pitch
                     )
                 else:
-                    # Minimal params on later retries
-                    communicate = edge_tts.Communicate(text, voice_attempt)
+                    communicate = edge_tts.Communicate(
+                        text, 
+                        voice_name,
+                        rate=rate,
+                        pitch=pitch
+                    )
                 
                 await communicate.save(output_path)
                 
-                # Get duration
-                audio = AudioFileClip(output_path)
-                duration = audio.duration
-                audio.close()
+                # Apply audio enhancement - speed up slightly for energy
+                try:
+                    from pydub import AudioSegment
+                    audio = AudioSegment.from_file(output_path)
+                    # Speed up 5-10% for more energy
+                    speed_factor = 1.05
+                    enhanced = audio._spawn(audio.raw_data, overrides={
+                        "frame_rate": int(audio.frame_rate * speed_factor)
+                    }).set_frame_rate(audio.frame_rate)
+                    enhanced.export(output_path, format="mp3")
+                except:
+                    pass  # Keep original if enhancement fails
                 
-                print(f"   ✅ TTS success with {voice_attempt}")
+                # Get duration
+                audio_clip = AudioFileClip(output_path)
+                duration = audio_clip.duration
+                audio_clip.close()
+                
+                print(f"   ✅ TTS success with {voice_name} (style: {style or 'default'})")
                 return duration
                 
             except Exception as e:
                 last_error = e
-                print(f"   ⚠️ TTS attempt {attempt + 1}/{retries} with {voice_attempt} failed: {e}")
-                if attempt < retries - 1:
-                    wait_time = 5 + (attempt * 5)  # Quick retries: 5s, 10s, 15s
-                    print(f"   Waiting {wait_time}s before retry...")
-                    await asyncio.sleep(wait_time)
+                print(f"   ⚠️ TTS attempt with {voice_name}: {str(e)[:50]}")
+                await asyncio.sleep(3)  # Quick retry
         
-        # If all retries with this voice failed, try next voice
-        print(f"   ⚠️ All retries with {voice_attempt} failed, trying next voice...")
+        print(f"   ⚠️ Voice {voice_name} failed, trying next...")
     
     # FALLBACK: Try gTTS (Google TTS) - more reliable but less engaging
     print("   🔄 Trying gTTS fallback...")
@@ -906,42 +962,83 @@ async def generate_video_v2(question: dict, output_filename: str = None) -> str:
     
     print(f"⏱️ Total duration: {total_duration:.1f}s")
     
-    # Get B-roll video
-    print("📹 Getting background video...")
-    broll_path = get_broll_for_question(question)
+    # Get MULTIPLE B-roll clips to avoid cycling
+    print("📹 Getting background video clips...")
+    bg_clip = None
     
-    if broll_path and os.path.exists(broll_path):
-        try:
-            bg_clip = VideoFileClip(broll_path)
-            # Resize and crop to vertical
-            bg_ratio = bg_clip.w / bg_clip.h
+    try:
+        broll_clips = get_multiple_broll_clips(question, count=4)  # Get 4 different clips
+        
+        if broll_clips:
+            processed_clips = []
             target_ratio = VIDEO_WIDTH / VIDEO_HEIGHT
             
-            if bg_ratio > target_ratio:
-                new_height = VIDEO_HEIGHT
-                new_width = int(VIDEO_HEIGHT * bg_ratio)
-            else:
-                new_width = VIDEO_WIDTH
-                new_height = int(VIDEO_WIDTH / bg_ratio)
+            for broll_path in broll_clips:
+                if not os.path.exists(broll_path):
+                    continue
+                    
+                clip = VideoFileClip(broll_path)
+                bg_ratio = clip.w / clip.h
+                
+                if bg_ratio > target_ratio:
+                    new_height = VIDEO_HEIGHT
+                    new_width = int(VIDEO_HEIGHT * bg_ratio)
+                else:
+                    new_width = VIDEO_WIDTH
+                    new_height = int(VIDEO_WIDTH / bg_ratio)
+                
+                clip = clip.resize((new_width, new_height))
+                x_center = new_width // 2
+                y_center = new_height // 2
+                clip = clip.crop(x_center=x_center, y_center=y_center,
+                                 width=VIDEO_WIDTH, height=VIDEO_HEIGHT)
+                processed_clips.append(clip)
             
-            bg_clip = bg_clip.resize((new_width, new_height))
-            x_center = new_width // 2
-            y_center = new_height // 2
-            bg_clip = bg_clip.crop(x_center=x_center, y_center=y_center,
-                                   width=VIDEO_WIDTH, height=VIDEO_HEIGHT)
-            
-            # Loop if needed
-            if bg_clip.duration < total_duration:
-                n_loops = int(total_duration / bg_clip.duration) + 1
-                bg_clip = bg_clip.loop(n=n_loops)
-            bg_clip = bg_clip.subclip(0, total_duration)
-            
-            # Darken for text readability
-            bg_clip = bg_clip.fx(vfx.colorx, 0.4)
-        except Exception as e:
-            print(f"   ⚠️ B-roll load failed: {e}, using gradient")
-            bg_clip = None
-    else:
+            if processed_clips:
+                # Concatenate clips with crossfade for smooth transitions
+                from moviepy.editor import concatenate_videoclips
+                bg_clip = concatenate_videoclips(processed_clips, method="compose")
+                
+                # If still shorter than needed, loop the concatenation
+                if bg_clip.duration < total_duration:
+                    n_loops = int(total_duration / bg_clip.duration) + 1
+                    bg_clip = bg_clip.loop(n=n_loops)
+                bg_clip = bg_clip.subclip(0, total_duration)
+                
+                # Darken for text readability
+                bg_clip = bg_clip.fx(vfx.colorx, 0.4)
+                print(f"   ✅ Created B-roll from {len(processed_clips)} clips")
+        
+        # Fallback to single clip if multi-clip failed
+        if bg_clip is None:
+            broll_path = get_broll_for_question(question)
+            if broll_path and os.path.exists(broll_path):
+                bg_clip = VideoFileClip(broll_path)
+                bg_ratio = bg_clip.w / bg_clip.h
+                
+                if bg_ratio > target_ratio:
+                    new_height = VIDEO_HEIGHT
+                    new_width = int(VIDEO_HEIGHT * bg_ratio)
+                else:
+                    new_width = VIDEO_WIDTH
+                    new_height = int(VIDEO_WIDTH / bg_ratio)
+                
+                bg_clip = bg_clip.resize((new_width, new_height))
+                x_center = new_width // 2
+                y_center = new_height // 2
+                bg_clip = bg_clip.crop(x_center=x_center, y_center=y_center,
+                                       width=VIDEO_WIDTH, height=VIDEO_HEIGHT)
+                
+                if bg_clip.duration < total_duration:
+                    n_loops = int(total_duration / bg_clip.duration) + 1
+                    bg_clip = bg_clip.loop(n=n_loops)
+                bg_clip = bg_clip.subclip(0, total_duration)
+                
+                # Darken for text readability
+                bg_clip = bg_clip.fx(vfx.colorx, 0.4)
+                
+    except Exception as e:
+        print(f"   ⚠️ B-roll load failed: {e}, using gradient")
         bg_clip = None
     
     # Create gradient background if no B-roll

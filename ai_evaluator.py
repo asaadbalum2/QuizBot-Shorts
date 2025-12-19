@@ -1,7 +1,13 @@
 #!/usr/bin/env python3
 """
 AI Video Content Evaluator - Uses Groq to evaluate video content quality
-For development phase only - provides feedback on virality potential
+PRODUCTION USE: Filters out bad quality content and provides guardrails.
+Also used in development for feedback.
+
+Key Functions:
+1. evaluate_question() - Check if question is viral-worthy
+2. check_content_safety() - Filter inappropriate content
+3. should_upload() - Final gate before uploading
 """
 import os
 import json
@@ -238,8 +244,140 @@ def evaluate_and_print(option_a: str, option_b: str, theme: str = "Unknown",
     return q_result, v_result
 
 
+class ProductionGuardrails:
+    """
+    PRODUCTION USE: Gate-keep content before upload.
+    Ensures quality, safety, and brand consistency.
+    """
+    
+    # Minimum scores required for upload
+    MIN_OVERALL_SCORE = 5  # Out of 10
+    MIN_SAFETY_SCORE = 8   # Content safety is critical
+    
+    # Content safety filters
+    BANNED_TOPICS = [
+        "death", "suicide", "murder", "abuse", "violence",
+        "drugs", "alcohol", "gambling", "weapons",
+        "sex", "nsfw", "porn", "nude",
+        "racist", "nazi", "hate", "slur",
+        "poop", "vomit", "diarrhea", "fart",  # Gross content
+    ]
+    
+    def __init__(self):
+        self.evaluator = AIEvaluator()
+    
+    def check_content_safety(self, option_a: str, option_b: str) -> Dict:
+        """
+        Check if content is safe for all audiences.
+        
+        Returns:
+            {
+                "is_safe": bool,
+                "safety_score": int,
+                "reason": str (if not safe)
+            }
+        """
+        text = f"{option_a} {option_b}".lower()
+        
+        # Rule-based check first (fast)
+        for banned in self.BANNED_TOPICS:
+            if banned in text:
+                return {
+                    "is_safe": False,
+                    "safety_score": 0,
+                    "reason": f"Contains banned topic: '{banned}'"
+                }
+        
+        # AI-based check for edge cases (if Groq available)
+        if self.evaluator.groq_client:
+            try:
+                prompt = f'''Is this "Would You Rather" question appropriate for ALL ages on YouTube?
+                
+Question: "{option_a}" OR "{option_b}"
+
+Return ONLY valid JSON:
+{{
+    "is_appropriate": <true or false>,
+    "safety_score": <1-10, 10 being totally safe>,
+    "concern": "<any concern or 'none'>"
+}}'''
+                
+                response = self.evaluator.groq_client.chat.completions.create(
+                    model="llama-3.3-70b-versatile",
+                    messages=[{"role": "user", "content": prompt}],
+                    max_tokens=150,
+                    temperature=0.1
+                )
+                
+                content = response.choices[0].message.content.strip()
+                if "```json" in content:
+                    content = content.split("```json")[1].split("```")[0]
+                elif "```" in content:
+                    content = content.split("```")[1].split("```")[0]
+                
+                result = json.loads(content)
+                return {
+                    "is_safe": result.get("is_appropriate", True) and result.get("safety_score", 10) >= self.MIN_SAFETY_SCORE,
+                    "safety_score": result.get("safety_score", 10),
+                    "reason": result.get("concern", "none")
+                }
+                
+            except Exception as e:
+                # If AI check fails, rely on rule-based (already passed)
+                pass
+        
+        return {"is_safe": True, "safety_score": 10, "reason": "none"}
+    
+    def should_upload(self, option_a: str, option_b: str, 
+                     has_broll: bool = True, has_music: bool = True) -> Dict:
+        """
+        FINAL DECISION: Should this video be uploaded?
+        
+        Returns:
+            {
+                "should_upload": bool,
+                "score": int,
+                "reason": str
+            }
+        """
+        # Step 1: Safety check
+        safety = self.check_content_safety(option_a, option_b)
+        if not safety.get("is_safe", True):
+            return {
+                "should_upload": False,
+                "score": 0,
+                "reason": f"Safety: {safety.get('reason', 'Content not safe')}"
+            }
+        
+        # Step 2: Quality check
+        quality = self.evaluator.evaluate_question(option_a, option_b)
+        overall = quality.get("overall_score", 5)
+        
+        if overall < self.MIN_OVERALL_SCORE:
+            return {
+                "should_upload": False,
+                "score": overall,
+                "reason": f"Quality too low: {overall}/10 (min: {self.MIN_OVERALL_SCORE})"
+            }
+        
+        # Step 3: Production check - require at least basic production
+        if not has_music and not has_broll:
+            return {
+                "should_upload": False,
+                "score": overall,
+                "reason": "Missing both music and b-roll - production quality too low"
+            }
+        
+        return {
+            "should_upload": True,
+            "score": overall,
+            "reason": f"Score: {overall}/10 - {quality.get('verdict', 'APPROVED')}"
+        }
+
+
 if __name__ == "__main__":
-    # Test
+    # Test evaluation
+    print("🧪 Testing AI Evaluator")
     evaluate_and_print(
         "Live 10 years younger in eternal health",
         "Have 10 extra years of lifespan naturally",
@@ -248,3 +386,23 @@ if __name__ == "__main__":
         has_music=False,
         has_sfx=True
     )
+    
+    # Test production guardrails
+    print("\n🛡️ Testing Production Guardrails")
+    guardrails = ProductionGuardrails()
+    
+    # Test safe content
+    result = guardrails.should_upload(
+        "Have unlimited money",
+        "Have unlimited time",
+        has_broll=True, has_music=True
+    )
+    print(f"Safe content: {result}")
+    
+    # Test unsafe content
+    result = guardrails.should_upload(
+        "Watch someone vomit",
+        "Have diarrhea in public",
+        has_broll=True, has_music=True
+    )
+    print(f"Unsafe content: {result}")

@@ -35,6 +35,38 @@ class TrendingContentGenerator:
     based on current trends and proven viral formats.
     """
     
+    # CONTENT FILTER - Block disgusting/inappropriate content
+    BANNED_WORDS = [
+        "vomit", "vomiting", "poop", "pee", "fart", "diarrhea", "toilet",
+        "bathroom accident", "wet yourself", "puke", "throw up", "barf",
+        "naked", "nude", "sex", "sexual", "porn", "nsfw",
+        "kill", "murder", "suicide", "die painfully", "torture",
+        "racist", "slur", "hate", "nazi",
+        # Add more as needed
+    ]
+    
+    @classmethod
+    def is_content_appropriate(cls, text: str) -> bool:
+        """Check if content passes the filter."""
+        text_lower = text.lower()
+        for word in cls.BANNED_WORDS:
+            if word in text_lower:
+                return False
+        return True
+    
+    @classmethod
+    def filter_questions(cls, questions: List[Dict]) -> List[Dict]:
+        """Filter out inappropriate questions."""
+        filtered = []
+        for q in questions:
+            opt_a = q.get('option_a', '')
+            opt_b = q.get('option_b', '')
+            if cls.is_content_appropriate(opt_a) and cls.is_content_appropriate(opt_b):
+                filtered.append(q)
+            else:
+                print(f"   ⚠️ Filtered out inappropriate question: {opt_a[:30]}...")
+        return filtered
+    
     # VIRAL question categories - designed to maximize engagement/comments
     VIRAL_CATEGORIES = {
         "money_vs_everything": {

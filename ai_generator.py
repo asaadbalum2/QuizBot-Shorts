@@ -253,7 +253,15 @@ def refresh_questions_file(output_path: str = "questions.json", count: int = 50)
     else:
         print("⚠️ No AI questions generated. Keeping existing file.")
     
-    return unique_questions
+    # Apply content filter
+    try:
+        from trending_content import TrendingContentGenerator
+        filtered = TrendingContentGenerator.filter_questions(unique_questions)
+        print(f"   🛡️ Content filter: {len(unique_questions)} → {len(filtered)} questions")
+        return filtered
+    except Exception as e:
+        print(f"   ⚠️ Filter not applied: {e}")
+        return unique_questions
 
 
 if __name__ == "__main__":
