@@ -40,6 +40,10 @@ from moviepy.video.VideoClip import VideoClip
 import moviepy.video.fx.all as vfx
 
 from PIL import Image, ImageDraw, ImageFont, ImageFilter
+# Fix Pillow 10+ compatibility - ANTIALIAS was removed
+if not hasattr(Image, 'ANTIALIAS'):
+    Image.ANTIALIAS = Image.Resampling.LANCZOS
+
 import edge_tts
 
 # Constants
@@ -76,30 +80,27 @@ def strip_emojis(text: str) -> str:
 
 
 # Voice configurations per video type - each type gets unique voice!
+# Using stable voice settings that work reliably with edge-tts
 VOICE_CONFIG = {
     "psychology_fact": {
         "voice": "en-US-AriaNeural",
-        "style": "empathetic",
         "rate": "+5%",
-        "pitch": "+2Hz",
+        "pitch": "+0Hz",
     },
     "money_fact": {
-        "voice": "en-US-DavisNeural", 
-        "style": None,
-        "rate": "+8%",
+        "voice": "en-US-GuyNeural",  # Changed from DavisNeural (more reliable)
+        "rate": "+10%",
         "pitch": "+0Hz",
     },
     "life_hack": {
         "voice": "en-US-JennyNeural",
-        "style": None,
-        "rate": "+10%",
-        "pitch": "+3Hz",
+        "rate": "+8%",
+        "pitch": "+0Hz",
     },
     "scary_fact": {
-        "voice": "en-US-GuyNeural",
-        "style": None,
-        "rate": "-5%",
-        "pitch": "-2Hz",
+        "voice": "en-US-ChristopherNeural",  # Deep voice for scary content
+        "rate": "-3%",
+        "pitch": "+0Hz",
     },
 }
 
