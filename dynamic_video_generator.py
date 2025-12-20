@@ -559,25 +559,33 @@ Return ONLY a JSON array of keywords, one per phrase:
         duration = await generate_voiceover_v2(full_content, str(voiceover_path))
         print(f"   🎙️ Voiceover: {duration:.1f}s")
         
-        # Step 5: Calculate duration per phrase (using WORDS for better sync)
-        # TTS speaks ~150 words per minute = 2.5 words per second
-        # Using word count gives better sync than character count
+        # Step 5: Calculate duration per phrase (using PRECISE WORD TIMING)
+        # Edge TTS speaks at ~150 words/minute = 2.5 words/second = 0.4s per word
+        # Adding natural pauses between phrases for better sync
+        WORDS_PER_SECOND = 2.5
+        PAUSE_BETWEEN_PHRASES = 0.3  # Natural pause after each phrase
+        
         phrase_durations = []
-        total_words = sum(len(p.split()) for p in phrases)
+        running_time = 0.0
         
-        for phrase in phrases:
+        for i, phrase in enumerate(phrases):
             word_count = len(phrase.split())
-            # Calculate phrase duration proportionally
-            phrase_duration = (word_count / total_words) * duration
-            # Add small buffer (0.3s) for natural pauses between phrases
-            phrase_duration = max(phrase_duration, 2.0)  # Min 2s per phrase
+            # Base duration from word count
+            base_duration = word_count / WORDS_PER_SECOND
+            # Add pause (except for last phrase)
+            pause = PAUSE_BETWEEN_PHRASES if i < len(phrases) - 1 else 0
+            phrase_duration = base_duration + pause
+            # Minimum duration for readability
+            phrase_duration = max(phrase_duration, 1.5)
             phrase_durations.append(phrase_duration)
+            running_time += phrase_duration
         
-        # Normalize durations to match total voiceover duration
-        total_calculated = sum(phrase_durations)
-        if total_calculated != duration:
-            scale = duration / total_calculated
+        # Scale to match actual voiceover duration (TTS rate varies)
+        if running_time > 0:
+            scale = duration / running_time
             phrase_durations = [d * scale for d in phrase_durations]
+        
+        print(f"   [SYNC] Phrase durations: {[f'{d:.1f}s' for d in phrase_durations]}")
         
         # Step 6: Create segments
         theme = random.choice(list(THEMES.values()))

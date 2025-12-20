@@ -840,8 +840,12 @@ async def main():
             filename = os.path.basename(video_path)
             
             # Skip already uploaded videos (duplicate prevention)
-            if filename in already_uploaded:
-                print(f"   ⏭️ Skipping (already uploaded): {filename}")
+            # Check with platform prefix to track per-platform uploads
+            yt_key = f"youtube:{filename}"
+            dm_key = f"dailymotion:{filename}"
+            
+            if yt_key in already_uploaded and dm_key in already_uploaded:
+                print(f"   [SKIP] Already uploaded to both platforms: {filename}")
                 continue
             
             # Extract topic info from filename for better title
@@ -901,73 +905,80 @@ async def main():
             
             # YouTube Upload
             yt_video_id = None
-            try:
-                from youtube_uploader import upload_to_youtube
-                print(f"\n   📺 Uploading to YouTube: {title}")
-                result = upload_to_youtube(
-                    video_path,
-                    title=title,
-                    description=description,
-                    tags=tags
-                )
-                if result:
-                    print(f"   ✅ YouTube: {result}")
-                    uploaded_count += 1
-                    yt_video_id = result.get('id') if isinstance(result, dict) else str(result)
-                    # Mark as uploaded to prevent duplicates
-                    with open(uploaded_videos_file, 'a') as f:
-                        f.write(f"{filename}\n")
-                    
-                    # Record to analytics feedback system
-                    if feedback_controller:
-                        try:
-                            feedback_controller.record_upload(filename, "youtube", yt_video_id)
-                        except Exception as fe:
-                            print(f"   ⚠️ Analytics recording failed: {fe}")
-            except Exception as e:
-                print(f"   ⚠️ YouTube upload error: {e}")
-            
+            if yt_key not in already_uploaded:
+                try:
+                    from youtube_uploader import upload_to_youtube
+                    print(f"\n   [YT] Uploading to YouTube: {title}")
+                    result = upload_to_youtube(
+                        video_path,
+                        title=title,
+                        description=description,
+                        tags=tags
+                    )
+                    if result:
+                        print(f"   [OK] YouTube: {result}")
+                        uploaded_count += 1
+                        yt_video_id = result.get('id') if isinstance(result, dict) else str(result)
+                        # Mark as uploaded with platform prefix (prevents duplicates)
+                        with open(uploaded_videos_file, 'a') as f:
+                            f.write(f"{yt_key}\n")
+                        already_uploaded.add(yt_key)  # Update in-memory too!
+                        
+                        # Record to analytics feedback system
+                        if feedback_controller:
+                            try:
+                                feedback_controller.record_upload(filename, "youtube", yt_video_id)
+                            except Exception as fe:
+                                print(f"   [!] Analytics recording failed: {fe}")
+                except Exception as e:
+                    print(f"   [!] YouTube upload error: {e}")
+            else:
+                print(f"   [SKIP] Already on YouTube: {filename}")
             # Dailymotion Upload (with anti-ban delay)
-            if anti_ban and HAS_ANTI_BAN:
-                delay = anti_ban.get_random_delay()
-                print(f"   ⏳ Anti-ban delay: {delay:.1f}s")
-                time.sleep(delay)
-            
-            try:
-                from dailymotion_uploader import DailymotionUploader
-                dm = DailymotionUploader()
-                if dm.is_configured:
-                    # Check connectivity first (no quota used)
-                    conn = dm.check_connectivity()
-                    if conn.get('status') == 'ok':
-                        print(f"\n   📺 Uploading to Dailymotion: {title}")
-                        print(f"      Channel: {dm_channel}, Tags: {len(tags)}")
-                        dm_result = dm.upload_video(
-                            video_path,
-                            title=title,
-                            description=description,
-                            tags=tags,
-                            channel=dm_channel,  # Proper category!
-                            ai_generated=False  # User preference: no AI disclosure in description
-                        )
-                        if dm_result:
-                            print(f"   ✅ Dailymotion: {dm_result}")
-                            # Mark as uploaded to prevent duplicates
-                            with open(uploaded_videos_file, 'a') as f:
-                                f.write(f"{filename}\n")
-                            
-                            # Record to analytics feedback system
-                            if feedback_controller:
-                                try:
-                                    feedback_controller.record_upload(filename, "dailymotion", dm_result)
-                                except Exception as fe:
-                                    print(f"   ⚠️ Dailymotion analytics recording failed: {fe}")
+            if dm_key not in already_uploaded:
+                if anti_ban and HAS_ANTI_BAN:
+                    delay = anti_ban.get_random_delay()
+                    print(f"   [WAIT] Anti-ban delay: {delay:.1f}s")
+                    time.sleep(delay)
+                
+                try:
+                    from dailymotion_uploader import DailymotionUploader
+                    dm = DailymotionUploader()
+                    if dm.is_configured:
+                        # Check connectivity first (no quota used)
+                        conn = dm.check_connectivity()
+                        if conn.get('status') == 'ok':
+                            print(f"\n   [DM] Uploading to Dailymotion: {title}")
+                            print(f"      Channel: {dm_channel}, Tags: {len(tags)}")
+                            dm_result = dm.upload_video(
+                                video_path,
+                                title=title,
+                                description=description,
+                                tags=tags,
+                                channel=dm_channel,  # Proper category!
+                                ai_generated=False  # User preference: no AI disclosure
+                            )
+                            if dm_result:
+                                print(f"   [OK] Dailymotion: {dm_result}")
+                                # Mark as uploaded with platform prefix (prevents duplicates)
+                                with open(uploaded_videos_file, 'a') as f:
+                                    f.write(f"{dm_key}\n")
+                                already_uploaded.add(dm_key)  # Update in-memory too!
+                                
+                                # Record to analytics feedback system
+                                if feedback_controller:
+                                    try:
+                                        feedback_controller.record_upload(filename, "dailymotion", dm_result)
+                                    except Exception as fe:
+                                        print(f"   [!] Dailymotion analytics recording failed: {fe}")
+                        else:
+                            print(f"   [!] Dailymotion: {conn.get('message')}")
                     else:
-                        print(f"   ⚠️ Dailymotion: {conn.get('message')}")
-                else:
-                    print("   ⚠️ Dailymotion not configured")
-            except Exception as e:
-                print(f"   ⚠️ Dailymotion upload error: {e}")
+                        print("   [!] Dailymotion not configured")
+                except Exception as e:
+                    print(f"   [!] Dailymotion upload error: {e}")
+            else:
+                print(f"   [SKIP] Already on Dailymotion: {filename}")
     
     elif not should_upload:
         print("\n📁 Videos saved locally (upload skipped)")
