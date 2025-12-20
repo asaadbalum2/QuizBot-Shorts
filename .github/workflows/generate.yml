@@ -31,16 +31,15 @@ on:
         options:
           - 'true'
           - 'false'
-  # ENABLED - Autonomous video generation
-  # Runs 6 times per day at different hours (UTC time)
-  # Morning: 4 AM, 8 AM | Afternoon: 12 PM, 4 PM | Evening: 8 PM, Midnight
-  schedule:
-    - cron: '0 4 * * *'
-    - cron: '0 8 * * *'
-    - cron: '0 12 * * *'
-    - cron: '0 16 * * *'
-    - cron: '0 20 * * *'
-    - cron: '0 0 * * *'
+  # DISABLED - Waiting for quality approval before re-enabling
+  # Will be re-enabled once video quality is verified
+  # schedule:
+  #   - cron: '0 4 * * *'
+  #   - cron: '0 8 * * *'
+  #   - cron: '0 12 * * *'
+  #   - cron: '0 16 * * *'
+  #   - cron: '0 20 * * *'
+  #   - cron: '0 0 * * *'
 
 jobs:
   generate:
