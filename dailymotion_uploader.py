@@ -151,7 +151,8 @@ class DailymotionUploader:
             return False
     
     def upload_video(self, video_path: str, title: str, description: str,
-                    tags: list = None, channel: str = "videogames") -> Optional[str]:
+                    tags: list = None, channel: str = "lifestyle", 
+                    ai_generated: bool = True) -> Optional[str]:
         """
         Upload video to Dailymotion.
         
@@ -202,15 +203,27 @@ class DailymotionUploader:
             
             # Step 3: Create video entry
             safe_print(f"[*] Creating video entry...")
+            
+            # Clean and format tags properly
+            if tags:
+                clean_tags = [t.replace('#', '').strip() for t in tags if t.strip()]
+                tags_str = ",".join(clean_tags[:20])
+            else:
+                tags_str = "viral,shorts,trending,facts,lifehacks"
+            
             video_data = {
                 "url": file_url,
                 "title": title[:255],  # Dailymotion limit
                 "description": description[:3000],
-                "tags": ",".join(tags[:20]) if tags else "viral,shorts",
-                "channel": channel,
+                "tags": tags_str,
+                "channel": channel,  # lifestyle, news, music, fun, etc.
                 "published": "true",
                 "is_created_for_kids": "false"
             }
+            
+            # Add AI-generated label if applicable (ethical disclosure)
+            if ai_generated:
+                video_data["is_ai_generated"] = "true"
             
             response = requests.post(
                 self.VIDEO_URL,

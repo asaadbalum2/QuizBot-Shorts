@@ -302,31 +302,41 @@ Return ONLY a JSON array of keywords, one per phrase:
         return segment
     
     def create_phrase_overlay(self, phrase: str, width: int, height: int, theme) -> Image.Image:
-        """Create text overlay for a phrase."""
+        """Create MODERN, APPEALING text overlay for a phrase."""
         img = Image.new('RGBA', (width, height), (0, 0, 0, 0))
         draw = ImageDraw.Draw(img)
         
-        # Load font
+        # Modern font candidates (prioritize modern, clean fonts)
         font_candidates = [
-            "C:/Windows/Fonts/impact.ttf",
-            "C:/Windows/Fonts/arialbd.ttf",
+            # Modern sans-serif fonts (Windows)
+            "C:/Windows/Fonts/segoeui.ttf",        # Segoe UI - clean modern
+            "C:/Windows/Fonts/segoeuib.ttf",       # Segoe UI Bold
+            "C:/Windows/Fonts/calibrib.ttf",       # Calibri Bold
+            "C:/Windows/Fonts/verdanab.ttf",       # Verdana Bold
+            "C:/Windows/Fonts/ariblk.ttf",         # Arial Black
+            # Linux fallbacks
+            "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf",
+            "/usr/share/fonts/truetype/ubuntu/Ubuntu-Bold.ttf",
             "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
+            # Last resort
+            "C:/Windows/Fonts/arialbd.ttf",
         ]
         font_path = next((f for f in font_candidates if os.path.exists(f)), None)
         
+        # Larger, bolder font for better visibility
         try:
-            font = ImageFont.truetype(font_path, 52) if font_path else ImageFont.load_default()
+            font = ImageFont.truetype(font_path, 58) if font_path else ImageFont.load_default()
         except:
             font = ImageFont.load_default()
         
         # Strip emojis
         phrase = strip_emojis(phrase)
         
-        # Word wrap
+        # Word wrap with more padding
         words = phrase.split()
         lines = []
         current = []
-        max_width = width - 80
+        max_width = width - 100  # More padding for cleaner look
         
         for word in words:
             current.append(word)
@@ -340,25 +350,40 @@ Return ONLY a JSON array of keywords, one per phrase:
         if current:
             lines.append(" ".join(current))
         
-        # Draw centered with glow
-        y = (height - len(lines) * 70) // 2
+        # Get theme accent color (or use default gradient)
+        accent_color = getattr(theme, 'accent_color', (255, 200, 50))  # Golden yellow default
+        
+        # Draw centered with MODERN GLOW EFFECT
+        line_height = 75
+        y = (height - len(lines) * line_height) // 2
+        
         for line in lines:
             bbox = draw.textbbox((0, 0), line, font=font)
             x = (width - (bbox[2] - bbox[0])) // 2
             
-            # Glow
-            for offset in [3, 2]:
-                glow_alpha = 50 + (3 - offset) * 30
-                draw.text((x + offset, y + offset), line, fill=(0, 0, 0, glow_alpha), font=font)
-                draw.text((x - offset, y - offset), line, fill=(0, 0, 0, glow_alpha), font=font)
+            # MODERN GLOW - Outer glow (accent color)
+            for offset in [5, 4, 3]:
+                glow_alpha = 30 + (5 - offset) * 15
+                glow_color = (accent_color[0], accent_color[1], accent_color[2], glow_alpha)
+                draw.text((x + offset, y + offset), line, fill=glow_color, font=font)
+                draw.text((x - offset, y + offset), line, fill=glow_color, font=font)
+                draw.text((x + offset, y - offset), line, fill=glow_color, font=font)
+                draw.text((x - offset, y - offset), line, fill=glow_color, font=font)
             
-            # Shadow
-            draw.text((x + 2, y + 2), line, fill=(0, 0, 0, 180), font=font)
+            # Inner shadow (for depth)
+            draw.text((x + 2, y + 3), line, fill=(0, 0, 0, 200), font=font)
             
-            # Main text
+            # Main text (bright white)
             draw.text((x, y), line, fill=(255, 255, 255, 255), font=font)
             
-            y += 70
+            # Highlight effect (top edge shine)
+            try:
+                small_font = ImageFont.truetype(font_path, 56) if font_path else font
+                draw.text((x, y - 1), line, fill=(255, 255, 255, 80), font=small_font)
+            except:
+                pass
+            
+            y += line_height
         
         return img
     
@@ -420,12 +445,25 @@ Return ONLY a JSON array of keywords, one per phrase:
         duration = await generate_voiceover_v2(full_content, str(voiceover_path))
         print(f"   🎙️ Voiceover: {duration:.1f}s")
         
-        # Step 5: Calculate duration per phrase
+        # Step 5: Calculate duration per phrase (using WORDS for better sync)
+        # TTS speaks ~150 words per minute = 2.5 words per second
+        # Using word count gives better sync than character count
         phrase_durations = []
-        total_chars = sum(len(p) for p in phrases)
+        total_words = sum(len(p.split()) for p in phrases)
+        
         for phrase in phrases:
-            phrase_duration = (len(phrase) / total_chars) * duration
-            phrase_durations.append(max(phrase_duration, 2.0))  # Min 2s per phrase
+            word_count = len(phrase.split())
+            # Calculate phrase duration proportionally
+            phrase_duration = (word_count / total_words) * duration
+            # Add small buffer (0.3s) for natural pauses between phrases
+            phrase_duration = max(phrase_duration, 2.0)  # Min 2s per phrase
+            phrase_durations.append(phrase_duration)
+        
+        # Normalize durations to match total voiceover duration
+        total_calculated = sum(phrase_durations)
+        if total_calculated != duration:
+            scale = duration / total_calculated
+            phrase_durations = [d * scale for d in phrase_durations]
         
         # Step 6: Create segments
         theme = random.choice(list(THEMES.values()))

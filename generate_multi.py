@@ -772,34 +772,80 @@ async def main():
         
         uploaded_count = 0
         
+        # Track already uploaded videos to prevent duplicates
+        uploaded_videos_file = OUTPUT_DIR / ".uploaded_videos.txt"
+        already_uploaded = set()
+        if uploaded_videos_file.exists():
+            already_uploaded = set(uploaded_videos_file.read_text().strip().split('\n'))
+        
+        # Map video types to Dailymotion channels
+        DM_CHANNEL_MAP = {
+            'psychology': 'lifestyle',
+            'life': 'lifestyle', 
+            'money': 'news',
+            'scary': 'fun',
+            'mind': 'lifestyle',
+            'fact': 'lifestyle',
+            'wyr': 'fun',
+            'quiz': 'fun'
+        }
+        
         for video_path in videos_this_run:
             filename = os.path.basename(video_path)
             
+            # Skip already uploaded videos (duplicate prevention)
+            if filename in already_uploaded:
+                print(f"   ⏭️ Skipping (already uploaded): {filename}")
+                continue
+            
             # Extract topic info from filename for better title
             base_name = filename.replace('.mp4', '').replace('_', ' ')
-            video_type = base_name.split()[0] if ' ' in base_name else 'fact'
+            parts = base_name.split()
+            video_type = parts[1] if len(parts) > 1 else 'fact'  # viral_psychology_fact -> psychology
+            
+            # Determine Dailymotion channel based on video type
+            dm_channel = 'lifestyle'  # Default
+            for key, channel in DM_CHANNEL_MAP.items():
+                if key in video_type.lower() or key in filename.lower():
+                    dm_channel = channel
+                    break
             
             # Use AI to generate viral title if available
             if viral_opt and HAS_VIRAL_OPT:
                 try:
+                    # Create a richer prompt from video type
+                    content_hints = {
+                        'psychology': 'psychological facts about human behavior and mind',
+                        'life': 'life hacks and productivity tips',
+                        'money': 'money saving tips and financial wisdom',
+                        'scary': 'mind-blowing scary facts',
+                        'mind': 'mind-blowing revelations',
+                    }
+                    hint = content_hints.get(video_type, 'viral trending facts')
+                    
                     metadata = generate_viral_title_ai(
-                        hook=base_name,
-                        content=base_name,
+                        hook=f"Discover {video_type} secrets that will change your life",
+                        content=f"This video reveals fascinating {hint}. Watch until the end for the most surprising part!",
                         video_type=video_type
                     )
-                    title = metadata.get('title', base_name.title())[:100]
-                    description = metadata.get('description', 'Follow for more!')[:5000]
-                    hashtags = metadata.get('hashtags', ['#shorts', '#viral', '#facts'])
-                    tags = [h.replace('#', '') for h in hashtags]
+                    title = metadata.get('title', f"This {video_type.title()} Fact Will Blow Your Mind")[:100]
+                    description = metadata.get('description', 'Follow for more mind-blowing content!')[:5000]
+                    hashtags = metadata.get('hashtags', ['#shorts', '#viral', '#facts', '#trending', '#fyp'])
+                    tags = [h.replace('#', '').strip() for h in hashtags if h]
+                    
+                    # Add more relevant tags
+                    extra_tags = ['shorts', 'viral', 'trending', 'fyp', video_type, 'facts', 'mindblown']
+                    tags = list(set(tags + extra_tags))[:20]
+                    
                 except Exception as e:
-                    print(f"   ⚠️ AI title failed, using basic: {e}")
-                    title = base_name.title()[:100]
-                    description = "Follow for more viral content! #shorts #viral #facts"
-                    tags = ["shorts", "viral", "facts", "trending"]
+                    print(f"   ⚠️ AI title failed, using smart fallback: {e}")
+                    title = f"This {video_type.title()} Fact Will Change How You Think"[:100]
+                    description = f"Discover amazing {video_type} insights! Follow for more viral content! #shorts #viral #{video_type}"
+                    tags = ["shorts", "viral", "facts", "trending", "fyp", video_type, "mindblown"]
             else:
-                title = base_name.title()[:100]
-                description = "Follow for more viral content! #shorts #viral #facts"
-                tags = ["shorts", "viral", "facts", "trending"]
+                title = f"This {video_type.title()} Fact Will Blow Your Mind"[:100]
+                description = f"Discover amazing insights! Follow for more! #shorts #viral #{video_type}"
+                tags = ["shorts", "viral", "facts", "trending", "fyp", video_type]
             
             # Anti-ban delay between uploads
             if anti_ban and HAS_ANTI_BAN and uploaded_count > 0:
@@ -820,6 +866,9 @@ async def main():
                 if result:
                     print(f"   ✅ YouTube: {result}")
                     uploaded_count += 1
+                    # Mark as uploaded to prevent duplicates
+                    with open(uploaded_videos_file, 'a') as f:
+                        f.write(f"{filename}\n")
             except Exception as e:
                 print(f"   ⚠️ YouTube upload error: {e}")
             
@@ -837,14 +886,20 @@ async def main():
                     conn = dm.check_connectivity()
                     if conn.get('status') == 'ok':
                         print(f"\n   📺 Uploading to Dailymotion: {title}")
+                        print(f"      Channel: {dm_channel}, Tags: {len(tags)}")
                         result = dm.upload_video(
                             video_path,
                             title=title,
                             description=description,
-                            tags=tags
+                            tags=tags,
+                            channel=dm_channel,  # Proper category!
+                            ai_generated=True  # Ethical disclosure
                         )
                         if result:
                             print(f"   ✅ Dailymotion: {result}")
+                            # Mark as uploaded to prevent duplicates
+                            with open(uploaded_videos_file, 'a') as f:
+                                f.write(f"{filename}\n")
                     else:
                         print(f"   ⚠️ Dailymotion: {conn.get('message')}")
                 else:

@@ -201,7 +201,7 @@ jobs:
         with:
           name: generated-videos
           path: output/*.mp4
-          retention-days: 7
+          retention-days: 3  # Reduced to save storage (auto-cleanup)
           if-no-files-found: ignore
 
       - name: Verify video generation
