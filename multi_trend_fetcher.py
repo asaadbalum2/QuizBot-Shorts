@@ -271,18 +271,29 @@ class MultiTrendFetcher:
     Main class that combines all trend sources.
     
     Fetches from multiple sources and ranks by relevance.
+    Sources: Google RSS, Reddit, Twitter, AI
     """
     
     def __init__(self):
         self.google = GoogleTrendsFetcher()
         self.reddit = RedditTrendsFetcher()
         self.ai = AITrendGenerator()
+        
+        # Import Twitter fetcher
+        try:
+            from trending_twitter import TwitterTrendsFetcher
+            self.twitter = TwitterTrendsFetcher()
+            self.has_twitter = True
+        except ImportError:
+            self.twitter = None
+            self.has_twitter = False
     
     def fetch_all(self, count: int = 10) -> List[TrendingTopic]:
         """
         Fetch trends from all sources and merge.
         
         Returns the top trends sorted by score.
+        Sources: Google RSS, Reddit, Twitter, AI
         """
         all_topics = []
         
@@ -290,19 +301,35 @@ class MultiTrendFetcher:
         try:
             all_topics.extend(self.google.fetch(count=5))
         except Exception as e:
-            print(f"⚠️ Google fetch failed: {e}")
+            print(f"[!] Google fetch failed: {e}")
         
         # 2. Reddit (great for interesting facts/tips)
         try:
             all_topics.extend(self.reddit.fetch(count=5))
         except Exception as e:
-            print(f"⚠️ Reddit fetch failed: {e}")
+            print(f"[!] Reddit fetch failed: {e}")
         
-        # 3. AI-generated (fills gaps and adds creativity)
+        # 3. Twitter/X (viral topics and hashtags)
+        if self.has_twitter and self.twitter:
+            try:
+                twitter_trends = self.twitter.fetch(count=5)
+                for t in twitter_trends:
+                    all_topics.append(TrendingTopic(
+                        topic=t.topic,
+                        source="twitter",
+                        score=85,
+                        category=t.category,
+                        description=f"Trending on Twitter (~{t.tweet_volume:,} tweets)",
+                        keywords=[t.topic.replace("#", "").lower()]
+                    ))
+            except Exception as e:
+                print(f"[!] Twitter fetch failed: {e}")
+        
+        # 4. AI-generated (fills gaps and adds creativity)
         try:
             all_topics.extend(self.ai.generate(count=5))
         except Exception as e:
-            print(f"⚠️ AI generation failed: {e}")
+            print(f"[!] AI generation failed: {e}")
         
         # Sort by score
         all_topics.sort(key=lambda x: x.score, reverse=True)

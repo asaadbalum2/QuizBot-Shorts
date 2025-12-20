@@ -49,6 +49,7 @@ v3_modules = [
     "video_enhancements",
     "multi_trend_fetcher",
     "ai_thumbnail",
+    "trending_twitter",  # Twitter trends + Storytelling + Monetization
 ]
 
 for module in v3_modules:
