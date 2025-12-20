@@ -89,12 +89,12 @@ except ImportError as e:
 
 # Import AI EVALUATOR (content quality check before generation)
 try:
-    from ai_evaluator import AIContentEvaluator
+    from ai_evaluator import AIEvaluator
     HAS_EVALUATOR = True
-    print("✅ AIContentEvaluator loaded - quality checks enabled!")
+    print("✅ AIEvaluator loaded - quality checks enabled!")
 except ImportError as e:
     HAS_EVALUATOR = False
-    print(f"⚠️ AIContentEvaluator not available: {e}")
+    print(f"⚠️ AIEvaluator not available: {e}")
 
 # Import VALUE DELIVERY checker
 try:
@@ -107,7 +107,7 @@ except ImportError as e:
 
 # Import PLATFORM SAFETY (anti-ban measures)
 try:
-    from platform_safety import AntiBanSystem, PlatformVideoSpecs
+    from platform_safety import AntiBanSystem, PLATFORM_SPECS
     HAS_ANTI_BAN = True
     print("✅ AntiBanSystem loaded - anti-ban measures enabled!")
 except ImportError as e:
@@ -758,6 +758,12 @@ async def main():
     if should_upload and len(videos_this_run) > 0:
         print("\n📤 Uploading videos to platforms...")
         
+        # Initialize analytics feedback (learning from performance)
+        feedback_controller = None
+        if HAS_ANALYTICS:
+            feedback_controller = FeedbackLoopController()
+            print("   📊 Analytics feedback active - learning from performance!")
+        
         # Initialize viral optimizer for better titles
         viral_opt = None
         if HAS_VIRAL_OPT:
@@ -854,6 +860,7 @@ async def main():
                 time.sleep(delay)
             
             # YouTube Upload
+            yt_video_id = None
             try:
                 from youtube_uploader import upload_to_youtube
                 print(f"\n   📺 Uploading to YouTube: {title}")
@@ -866,9 +873,17 @@ async def main():
                 if result:
                     print(f"   ✅ YouTube: {result}")
                     uploaded_count += 1
+                    yt_video_id = result.get('id') if isinstance(result, dict) else str(result)
                     # Mark as uploaded to prevent duplicates
                     with open(uploaded_videos_file, 'a') as f:
                         f.write(f"{filename}\n")
+                    
+                    # Record to analytics feedback system
+                    if feedback_controller:
+                        try:
+                            feedback_controller.record_upload(filename, "youtube", yt_video_id)
+                        except Exception as fe:
+                            print(f"   ⚠️ Analytics recording failed: {fe}")
             except Exception as e:
                 print(f"   ⚠️ YouTube upload error: {e}")
             
@@ -887,7 +902,7 @@ async def main():
                     if conn.get('status') == 'ok':
                         print(f"\n   📺 Uploading to Dailymotion: {title}")
                         print(f"      Channel: {dm_channel}, Tags: {len(tags)}")
-                        result = dm.upload_video(
+                        dm_result = dm.upload_video(
                             video_path,
                             title=title,
                             description=description,
@@ -895,11 +910,18 @@ async def main():
                             channel=dm_channel,  # Proper category!
                             ai_generated=True  # Ethical disclosure
                         )
-                        if result:
-                            print(f"   ✅ Dailymotion: {result}")
+                        if dm_result:
+                            print(f"   ✅ Dailymotion: {dm_result}")
                             # Mark as uploaded to prevent duplicates
                             with open(uploaded_videos_file, 'a') as f:
                                 f.write(f"{filename}\n")
+                            
+                            # Record to analytics feedback system
+                            if feedback_controller:
+                                try:
+                                    feedback_controller.record_upload(filename, "dailymotion", dm_result)
+                                except Exception as fe:
+                                    print(f"   ⚠️ Dailymotion analytics recording failed: {fe}")
                     else:
                         print(f"   ⚠️ Dailymotion: {conn.get('message')}")
                 else:

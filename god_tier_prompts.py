@@ -25,6 +25,13 @@ try:
 except ImportError:
     HAS_GROQ = False
 
+# Gemini as fallback for when Groq fails
+try:
+    import google.generativeai as genai
+    HAS_GEMINI = True
+except ImportError:
+    HAS_GEMINI = False
+
 
 def strip_emojis(text: str) -> str:
     """Remove ALL emojis and special characters that don't render."""
@@ -258,29 +265,50 @@ Return JSON:
 # =============================================================================
 
 class GodTierContentGenerator:
-    """Generate viral content using god-tier prompts."""
+    """Generate viral content using god-tier prompts with multi-AI support."""
     
     def __init__(self):
-        self.client = None
+        self.groq_client = None
+        self.gemini_client = None
+        
+        # Initialize Groq (primary - faster)
         if HAS_GROQ and os.environ.get("GROQ_API_KEY"):
-            self.client = Groq(api_key=os.environ.get("GROQ_API_KEY"))
+            self.groq_client = Groq(api_key=os.environ.get("GROQ_API_KEY"))
+        
+        # Initialize Gemini (backup - higher quality for complex tasks)
+        if HAS_GEMINI and os.environ.get("GEMINI_API_KEY"):
+            try:
+                genai.configure(api_key=os.environ.get("GEMINI_API_KEY"))
+                self.gemini_client = genai.GenerativeModel('gemini-1.5-flash')
+            except Exception as e:
+                print(f"⚠️ Gemini init failed: {e}")
     
     def _call_ai(self, prompt: str, max_tokens: int = 2000) -> Optional[str]:
-        """Make AI call with error handling."""
-        if not self.client:
-            return None
+        """Make AI call with automatic fallback (Groq -> Gemini)."""
         
-        try:
-            response = self.client.chat.completions.create(
-                model="llama-3.3-70b-versatile",
-                messages=[{"role": "user", "content": prompt}],
-                max_tokens=max_tokens,
-                temperature=0.85  # High creativity
-            )
-            return response.choices[0].message.content
-        except Exception as e:
-            print(f"⚠️ AI call failed: {e}")
-            return None
+        # Try Groq first (faster)
+        if self.groq_client:
+            try:
+                response = self.groq_client.chat.completions.create(
+                    model="llama-3.3-70b-versatile",
+                    messages=[{"role": "user", "content": prompt}],
+                    max_tokens=max_tokens,
+                    temperature=0.85  # High creativity
+                )
+                return response.choices[0].message.content
+            except Exception as e:
+                print(f"⚠️ Groq failed: {e}, trying Gemini...")
+        
+        # Fallback to Gemini (higher quality)
+        if self.gemini_client:
+            try:
+                response = self.gemini_client.generate_content(prompt)
+                return response.text
+            except Exception as e:
+                print(f"⚠️ Gemini also failed: {e}")
+        
+        print("❌ All AI providers failed")
+        return None
     
     def _parse_json(self, text: str) -> Optional[Dict]:
         """Parse JSON from AI response."""

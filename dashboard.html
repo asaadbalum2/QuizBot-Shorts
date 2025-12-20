@@ -1,0 +1,515 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ViralShorts Factory - Control Center</title>
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-primary: #0a0a0f;
+            --bg-secondary: #12121a;
+            --bg-card: #1a1a24;
+            --accent-primary: #6366f1;
+            --accent-secondary: #8b5cf6;
+            --accent-success: #10b981;
+            --accent-warning: #f59e0b;
+            --accent-danger: #ef4444;
+            --text-primary: #f8fafc;
+            --text-secondary: #94a3b8;
+            --border-color: #2a2a3a;
+            --glow: 0 0 40px rgba(99, 102, 241, 0.3);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Space Grotesk', sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            min-height: 100vh;
+            background-image: 
+                radial-gradient(ellipse at top left, rgba(99, 102, 241, 0.1) 0%, transparent 50%),
+                radial-gradient(ellipse at bottom right, rgba(139, 92, 246, 0.1) 0%, transparent 50%);
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+
+        header {
+            text-align: center;
+            margin-bottom: 3rem;
+            animation: fadeInDown 0.8s ease;
+        }
+
+        @keyframes fadeInDown {
+            from { opacity: 0; transform: translateY(-30px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        h1 {
+            font-size: 3rem;
+            font-weight: 700;
+            background: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary), #ec4899);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 0.5rem;
+            letter-spacing: -1px;
+        }
+
+        .subtitle {
+            color: var(--text-secondary);
+            font-size: 1.1rem;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1.5rem;
+            margin-bottom: 3rem;
+        }
+
+        .stat-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: 16px;
+            padding: 1.5rem;
+            text-align: center;
+            transition: all 0.3s ease;
+            animation: fadeInUp 0.6s ease forwards;
+            opacity: 0;
+        }
+
+        .stat-card:nth-child(1) { animation-delay: 0.1s; }
+        .stat-card:nth-child(2) { animation-delay: 0.2s; }
+        .stat-card:nth-child(3) { animation-delay: 0.3s; }
+        .stat-card:nth-child(4) { animation-delay: 0.4s; }
+        .stat-card:nth-child(5) { animation-delay: 0.5s; }
+
+        @keyframes fadeInUp {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .stat-card:hover {
+            transform: translateY(-5px);
+            box-shadow: var(--glow);
+            border-color: var(--accent-primary);
+        }
+
+        .stat-value {
+            font-size: 2.5rem;
+            font-weight: 700;
+            color: var(--accent-primary);
+            font-family: 'JetBrains Mono', monospace;
+        }
+
+        .stat-label {
+            color: var(--text-secondary);
+            font-size: 0.9rem;
+            margin-top: 0.5rem;
+        }
+
+        .section {
+            margin-bottom: 3rem;
+        }
+
+        .section-title {
+            font-size: 1.5rem;
+            font-weight: 600;
+            margin-bottom: 1.5rem;
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+
+        .section-title::before {
+            content: '';
+            width: 4px;
+            height: 24px;
+            background: linear-gradient(180deg, var(--accent-primary), var(--accent-secondary));
+            border-radius: 2px;
+        }
+
+        .features-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 1.5rem;
+        }
+
+        .feature-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: 16px;
+            padding: 1.5rem;
+            transition: all 0.3s ease;
+        }
+
+        .feature-card:hover {
+            border-color: var(--accent-primary);
+            box-shadow: 0 0 20px rgba(99, 102, 241, 0.2);
+        }
+
+        .feature-header {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            margin-bottom: 1rem;
+        }
+
+        .feature-icon {
+            width: 48px;
+            height: 48px;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.5rem;
+        }
+
+        .feature-icon.ai { background: linear-gradient(135deg, #6366f1, #8b5cf6); }
+        .feature-icon.video { background: linear-gradient(135deg, #ec4899, #f43f5e); }
+        .feature-icon.upload { background: linear-gradient(135deg, #10b981, #059669); }
+        .feature-icon.analytics { background: linear-gradient(135deg, #f59e0b, #d97706); }
+        .feature-icon.safety { background: linear-gradient(135deg, #3b82f6, #2563eb); }
+        .feature-icon.music { background: linear-gradient(135deg, #8b5cf6, #7c3aed); }
+
+        .feature-title {
+            font-weight: 600;
+            font-size: 1.1rem;
+        }
+
+        .feature-desc {
+            color: var(--text-secondary);
+            font-size: 0.9rem;
+            line-height: 1.6;
+        }
+
+        .status-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.25rem 0.75rem;
+            border-radius: 9999px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+
+        .status-badge.active {
+            background: rgba(16, 185, 129, 0.2);
+            color: var(--accent-success);
+        }
+
+        .status-badge.pending {
+            background: rgba(245, 158, 11, 0.2);
+            color: var(--accent-warning);
+        }
+
+        .api-status {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1rem;
+        }
+
+        .api-item {
+            background: var(--bg-secondary);
+            border-radius: 12px;
+            padding: 1rem;
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+
+        .api-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: var(--accent-success);
+            box-shadow: 0 0 10px rgba(16, 185, 129, 0.5);
+        }
+
+        .api-dot.warning { 
+            background: var(--accent-warning);
+            box-shadow: 0 0 10px rgba(245, 158, 11, 0.5);
+        }
+
+        .platforms-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 1.5rem;
+        }
+
+        .platform-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: 16px;
+            padding: 1.5rem;
+        }
+
+        .platform-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 1rem;
+        }
+
+        .platform-name {
+            font-weight: 600;
+            font-size: 1.1rem;
+        }
+
+        .platform-quota {
+            color: var(--text-secondary);
+            font-size: 0.85rem;
+        }
+
+        .quota-bar {
+            height: 8px;
+            background: var(--bg-secondary);
+            border-radius: 4px;
+            overflow: hidden;
+            margin-top: 1rem;
+        }
+
+        .quota-fill {
+            height: 100%;
+            background: linear-gradient(90deg, var(--accent-primary), var(--accent-secondary));
+            border-radius: 4px;
+            transition: width 1s ease;
+        }
+
+        .footer {
+            text-align: center;
+            margin-top: 4rem;
+            padding-top: 2rem;
+            border-top: 1px solid var(--border-color);
+            color: var(--text-secondary);
+            font-size: 0.9rem;
+        }
+
+        .links {
+            display: flex;
+            justify-content: center;
+            gap: 2rem;
+            margin-bottom: 1rem;
+        }
+
+        .links a {
+            color: var(--accent-primary);
+            text-decoration: none;
+            transition: color 0.3s ease;
+        }
+
+        .links a:hover {
+            color: var(--accent-secondary);
+        }
+
+        @media (max-width: 768px) {
+            h1 { font-size: 2rem; }
+            .container { padding: 1rem; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>ViralShorts Factory</h1>
+            <p class="subtitle">Autonomous AI-Powered Video Generation & Distribution</p>
+        </header>
+
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-value">6x</div>
+                <div class="stat-label">Daily Generations</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value">2</div>
+                <div class="stat-label">Platforms</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value">AI</div>
+                <div class="stat-label">Topic Discovery</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value">100%</div>
+                <div class="stat-label">Autonomous</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value">∞</div>
+                <div class="stat-label">Value Delivery</div>
+            </div>
+        </div>
+
+        <section class="section">
+            <h2 class="section-title">Core Features</h2>
+            <div class="features-grid">
+                <div class="feature-card">
+                    <div class="feature-header">
+                        <div class="feature-icon ai">🧠</div>
+                        <div>
+                            <div class="feature-title">God-Tier AI Prompts</div>
+                            <span class="status-badge active">Active</span>
+                        </div>
+                    </div>
+                    <p class="feature-desc">Uses Groq + Gemini with advanced prompt engineering for viral content generation. Multi-AI fallback ensures 99.9% uptime.</p>
+                </div>
+
+                <div class="feature-card">
+                    <div class="feature-header">
+                        <div class="feature-icon video">🎬</div>
+                        <div>
+                            <div class="feature-title">Per-Phrase B-Roll</div>
+                            <span class="status-badge active">Active</span>
+                        </div>
+                    </div>
+                    <p class="feature-desc">Dynamic video generation with B-roll changes every phrase. AI-powered keyword selection for maximum engagement.</p>
+                </div>
+
+                <div class="feature-card">
+                    <div class="feature-header">
+                        <div class="feature-icon upload">📤</div>
+                        <div>
+                            <div class="feature-title">Multi-Platform Upload</div>
+                            <span class="status-badge active">Active</span>
+                        </div>
+                    </div>
+                    <p class="feature-desc">Automatic uploads to YouTube Shorts and Dailymotion. AI-generated titles, descriptions, and hashtags.</p>
+                </div>
+
+                <div class="feature-card">
+                    <div class="feature-header">
+                        <div class="feature-icon analytics">📊</div>
+                        <div>
+                            <div class="feature-title">Analytics Feedback</div>
+                            <span class="status-badge active">Active</span>
+                        </div>
+                    </div>
+                    <p class="feature-desc">Tracks video performance and uses AI to analyze what works. Continuously improves content strategy.</p>
+                </div>
+
+                <div class="feature-card">
+                    <div class="feature-header">
+                        <div class="feature-icon safety">🛡️</div>
+                        <div>
+                            <div class="feature-title">Anti-Ban System</div>
+                            <span class="status-badge active">Active</span>
+                        </div>
+                    </div>
+                    <p class="feature-desc">Random delays, video fingerprinting, metadata variation. Prevents detection and account bans.</p>
+                </div>
+
+                <div class="feature-card">
+                    <div class="feature-header">
+                        <div class="feature-icon music">🎵</div>
+                        <div>
+                            <div class="feature-title">Dynamic Music</div>
+                            <span class="status-badge active">Active</span>
+                        </div>
+                    </div>
+                    <p class="feature-desc">Mood-matched background music from Bensound. Automatic volume balancing with voiceover.</p>
+                </div>
+            </div>
+        </section>
+
+        <section class="section">
+            <h2 class="section-title">API Status</h2>
+            <div class="api-status">
+                <div class="api-item">
+                    <div class="api-dot"></div>
+                    <span>Groq (Primary AI)</span>
+                </div>
+                <div class="api-item">
+                    <div class="api-dot"></div>
+                    <span>Gemini (Backup AI)</span>
+                </div>
+                <div class="api-item">
+                    <div class="api-dot"></div>
+                    <span>Pexels (B-Roll)</span>
+                </div>
+                <div class="api-item">
+                    <div class="api-dot"></div>
+                    <span>YouTube OAuth</span>
+                </div>
+                <div class="api-item">
+                    <div class="api-dot"></div>
+                    <span>Dailymotion OAuth</span>
+                </div>
+                <div class="api-item">
+                    <div class="api-dot"></div>
+                    <span>Edge TTS</span>
+                </div>
+            </div>
+        </section>
+
+        <section class="section">
+            <h2 class="section-title">Platform Quotas</h2>
+            <div class="platforms-grid">
+                <div class="platform-card">
+                    <div class="platform-header">
+                        <span class="platform-name">YouTube Shorts</span>
+                        <span class="status-badge active">Connected</span>
+                    </div>
+                    <p class="platform-quota">6 videos/day limit (safety buffer)</p>
+                    <div class="quota-bar">
+                        <div class="quota-fill" style="width: 50%"></div>
+                    </div>
+                </div>
+                <div class="platform-card">
+                    <div class="platform-header">
+                        <span class="platform-name">Dailymotion</span>
+                        <span class="status-badge active">Connected</span>
+                    </div>
+                    <p class="platform-quota">50 videos/day limit</p>
+                    <div class="quota-bar">
+                        <div class="quota-fill" style="width: 10%"></div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section class="section">
+            <h2 class="section-title">Video Types</h2>
+            <div class="features-grid">
+                <div class="feature-card">
+                    <div class="feature-title">🧠 Psychology Facts</div>
+                    <p class="feature-desc">Mind-blowing insights about human behavior with actionable takeaways.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-title">💰 Money Facts</div>
+                    <p class="feature-desc">Financial wisdom and money-saving tips with specific numbers.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-title">😱 Scary Facts</div>
+                    <p class="feature-desc">Creepy, disturbing facts that make people share.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-title">🚀 Life Hacks</div>
+                    <p class="feature-desc">Productivity tips and life improvement strategies.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-title">🤯 Mind Blows</div>
+                    <p class="feature-desc">Perspective-shifting revelations that make you think.</p>
+                </div>
+            </div>
+        </section>
+
+        <footer class="footer">
+            <div class="links">
+                <a href="https://github.com/asaadbalum2/ViralShorts-Factory" target="_blank">GitHub Repository</a>
+                <a href="https://www.youtube.com/@ViralShorts-Factory" target="_blank">YouTube Channel</a>
+                <a href="https://www.dailymotion.com/ViralShorts-Factory" target="_blank">Dailymotion Channel</a>
+            </div>
+            <p>Built with AI • Powered by Groq + Gemini • Fully Autonomous</p>
+        </footer>
+    </div>
+</body>
+</html>
+
