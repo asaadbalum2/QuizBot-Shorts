@@ -9,10 +9,18 @@ Generates viral "Would You Rather" questions based on:
 """
 
 import os
+import sys
 import json
 import random
 from datetime import datetime
 from typing import List, Dict, Optional
+
+# Windows-safe print function
+def safe_print(msg):
+    try:
+        print(msg)
+    except UnicodeEncodeError:
+        print(msg.encode('ascii', 'replace').decode('ascii'))
 
 # Try to import trending sources
 try:
@@ -20,7 +28,7 @@ try:
     PYTRENDS_AVAILABLE = True
 except ImportError:
     PYTRENDS_AVAILABLE = False
-    print("⚠️ pytrends not installed. Google Trends disabled.")
+    safe_print("[!] pytrends not installed. Google Trends disabled.")
 
 try:
     import requests
@@ -219,39 +227,119 @@ Reply with ONLY "YES" or "NO". Nothing else."""}],
         self.pytrends = None
         if PYTRENDS_AVAILABLE:
             try:
-                self.pytrends = TrendReq(hl='en-US', tz=360)
+                # Simple initialization - let pytrends handle defaults
+                # More complex options can cause compatibility issues
+                self.pytrends = TrendReq(
+                    hl='en-US', 
+                    tz=360,
+                    timeout=(10, 25),
+                    retries=2,
+                    backoff_factor=0.3
+                )
             except Exception as e:
-                print(f"⚠️ PyTrends init failed: {e}")
+                safe_print(f"[!] PyTrends init failed: {str(e)[:50]}")
     
     def get_google_trends(self) -> List[str]:
-        """Fetch current Google Trends with retry logic."""
-        if not self.pytrends:
-            return self._get_fallback_trends()
+        """Fetch current Google Trends with multiple fallback methods."""
+        import time
+        import re
         
-        for attempt in range(3):
-            try:
-                trending = self.pytrends.trending_searches(pn='united_states')
-                topics = trending[0].tolist()[:10]
-                if topics:
-                    print(f"✅ Got {len(topics)} Google Trends topics")
-                    return topics
-            except Exception as e:
-                if attempt < 2:
-                    import time
-                    time.sleep(2)
-                    continue
-                print(f"⚠️ Google Trends failed after 3 attempts: {e}")
+        # Method 1: Try pytrends with proper delays
+        if self.pytrends:
+            for attempt in range(3):
+                try:
+                    # Random delay to avoid rate limiting
+                    time.sleep(random.uniform(1, 3))
+                    trending = self.pytrends.trending_searches(pn='united_states')
+                    topics = trending[0].tolist()[:10]
+                    if topics:
+                        safe_print(f"[OK] Got {len(topics)} Google Trends topics")
+                        return topics
+                except Exception as e:
+                    if attempt < 2:
+                        time.sleep(random.uniform(2, 5))
+                        continue
+                    safe_print(f"[!] PyTrends attempt {attempt+1} failed: {str(e)[:50]}")
+        
+        # Method 2: Try direct Google Trends RSS feed
+        try:
+            if REQUESTS_AVAILABLE:
+                headers = {
+                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+                    'Accept': 'application/rss+xml,application/xml',
+                }
+                response = requests.get(
+                    'https://trends.google.com/trending/rss?geo=US',
+                    headers=headers,
+                    timeout=15
+                )
+                if response.status_code == 200:
+                    # Parse RSS for titles
+                    titles = re.findall(r'<title>([^<]+)</title>', response.text)
+                    # Skip first title (feed title) and get actual trends
+                    topics = [t.strip() for t in titles[1:11] if t.strip() and 'Daily Search Trends' not in t]
+                    if topics:
+                        safe_print(f"[OK] Got {len(topics)} trends from RSS feed")
+                        return topics
+        except Exception as e:
+            safe_print(f"[!] RSS feed failed: {str(e)[:50]}")
+        
+        # Method 3: Use AI to generate current trending topics
+        return self._get_ai_trends()
+    
+    def _get_ai_trends(self) -> List[str]:
+        """Use AI to generate current trending topics based on its knowledge."""
+        try:
+            from groq import Groq
+            api_key = os.environ.get("GROQ_API_KEY")
+            if not api_key:
+                return self._get_fallback_trends()
+            
+            client = Groq(api_key=api_key)
+            today = datetime.now().strftime("%B %d, %Y")
+            
+            response = client.chat.completions.create(
+                model="llama-3.3-70b-versatile",
+                messages=[{"role": "user", "content": f"""Today is {today}. 
+What are 10 topics that are likely trending RIGHT NOW on social media and Google?
+
+Consider:
+- Current events, news, celebrity drama
+- Seasonal events (holidays, sports, weather)
+- Viral challenges and memes
+- Tech/AI news
+- Entertainment (movies, music, TV shows)
+
+Return ONLY a JSON array of 10 short topic strings, nothing else.
+Example: ["Topic 1", "Topic 2", ...]"""}],
+                max_tokens=200,
+                temperature=0.7
+            )
+            
+            import json
+            topics = json.loads(response.choices[0].message.content.strip())
+            if topics and len(topics) > 0:
+                safe_print(f"[OK] Got {len(topics)} AI-generated trending topics")
+                return topics[:10]
+        except Exception as e:
+            safe_print(f"[!] AI trends failed: {str(e)[:50]}")
         
         return self._get_fallback_trends()
     
     def _get_fallback_trends(self) -> List[str]:
-        """Get AI-generated 'trending' topics when real trends unavailable."""
-        # Current events and evergreen viral topics
-        return [
-            "2024 trends", "viral challenges", "celebrity drama",
-            "tech news", "money tips", "relationship advice",
-            "social media", "gaming", "fitness goals", "AI technology"
+        """Final fallback: evergreen viral topics."""
+        today = datetime.now()
+        month = today.month
+        
+        # Dynamic based on current month
+        seasonal = self.SEASONAL_TOPICS.get(month, [])
+        
+        evergreen = [
+            "money tips", "relationship advice", "life hacks",
+            "psychology facts", "AI technology", "fitness goals"
         ]
+        
+        return seasonal + evergreen
     
     def get_reddit_trends(self) -> List[str]:
         """Fetch trending topics from Reddit with better handling."""
