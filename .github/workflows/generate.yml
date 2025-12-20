@@ -126,16 +126,16 @@ jobs:
           USE_V2="${{ github.event.inputs.use_v2 || 'true' }}"
           
           echo "🧠 Generating $BATCH_SIZE AI-powered viral videos..."
-          echo "   Types: life_hack, psychology_fact, scary_facts, money_facts, AI quotes"
+          echo "   Using GOD-TIER prompts for trending, viral topics!"
           
           if [ "$USE_V2" = "true" ]; then
-            # Use AI multi-type generator for viral content variety
+            # Use AI mode - generates TRENDING topics with god-tier prompts
             if [ "$TEST_ONLY" = "true" ]; then
               echo "TEST MODE - Generating WITHOUT upload..."
-              python generate_multi.py --type random --count $BATCH_SIZE --no-upload
+              python generate_multi.py --type ai --count $BATCH_SIZE --no-upload
             else
               echo "Generating WITH upload..."
-              python generate_multi.py --type random --count $BATCH_SIZE --upload
+              python generate_multi.py --type ai --count $BATCH_SIZE --upload
             fi
           else
             # Fallback to quiz-only V1

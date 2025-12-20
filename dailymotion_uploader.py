@@ -50,6 +50,17 @@ from typing import Optional, Dict
 from pathlib import Path
 
 
+def safe_print(msg: str):
+    """Print with fallback for Windows encoding issues."""
+    try:
+        print(msg)
+    except UnicodeEncodeError:
+        # Remove emojis for Windows compatibility
+        import re
+        clean = re.sub(r'[^\x00-\x7F]+', '', msg)
+        print(clean)
+
+
 class DailymotionUploader:
     """Upload videos to Dailymotion autonomously."""
     
