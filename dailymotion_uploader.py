@@ -79,16 +79,50 @@ class DailymotionUploader:
             self.api_key, self.api_secret, self.username, self.password
         ])
     
+    def check_connectivity(self) -> Dict:
+        """
+        Check Dailymotion connectivity WITHOUT using upload quota.
+        Just tests authentication - doesn't upload anything.
+        """
+        if not self.is_configured:
+            return {"status": "not_configured", "message": "Missing credentials"}
+        
+        try:
+            # Just test authentication
+            response = requests.post(self.AUTH_URL, data={
+                "grant_type": "password",
+                "client_id": self.api_key,
+                "client_secret": self.api_secret,
+                "username": self.username,
+                "password": self.password,
+                "scope": "manage_videos"
+            }, timeout=15)
+            
+            data = response.json()
+            
+            if response.status_code == 200 and "access_token" in data:
+                self.access_token = data["access_token"]
+                return {
+                    "status": "ok",
+                    "message": "Dailymotion connected",
+                    "has_token": True
+                }
+            else:
+                error = data.get("error_description", data.get("error", "Unknown"))
+                return {
+                    "status": "auth_failed",
+                    "message": f"Auth failed: {error}"
+                }
+        except Exception as e:
+            return {"status": "error", "message": str(e)}
+    
     def authenticate(self) -> bool:
-        """Get access token using password grant (required for uploads)."""
+        """Get access token."""
         if not self.is_configured:
             safe_print("[X] Dailymotion not configured")
             return False
         
         try:
-            # Use password grant for user-level access (required for uploads)
-            safe_print(f"[*] Authenticating with Dailymotion (user: {self.username})...")
-            
             response = requests.post(self.AUTH_URL, data={
                 "grant_type": "password",
                 "client_id": self.api_key,
@@ -102,16 +136,11 @@ class DailymotionUploader:
             
             if response.status_code == 200 and "access_token" in data:
                 self.access_token = data["access_token"]
-                safe_print(f"[OK] Dailymotion authenticated (token: {self.access_token[:15]}...)")
+                safe_print(f"[OK] Dailymotion authenticated (token length: {len(self.access_token)})")
                 return True
             else:
-                error = data.get("error_description", data.get("error", "Unknown error"))
+                error = data.get("error_description", data.get("error", response.text[:200]))
                 safe_print(f"[X] Dailymotion auth failed: {error}")
-                
-                # If password grant fails, try client_credentials as test
-                if "invalid_grant" in str(error).lower():
-                    safe_print("[!] Username/password may be incorrect. Check DAILYMOTION_USERNAME and DAILYMOTION_PASSWORD secrets.")
-                
                 return False
                 
         except requests.exceptions.Timeout:
@@ -142,37 +171,37 @@ class DailymotionUploader:
         
         video_path = Path(video_path)
         if not video_path.exists():
-            print(f"❌ Video not found: {video_path}")
+            safe_print(f"[X] Video not found: {video_path}")
             return None
         
         headers = {"Authorization": f"Bearer {self.access_token}"}
         
         try:
             # Step 1: Get upload URL
-            print(f"📤 Getting upload URL...")
+            safe_print(f"[*] Getting upload URL...")
             response = requests.get(self.UPLOAD_URL, headers=headers)
             
             if response.status_code != 200:
-                print(f"❌ Failed to get upload URL: {response.text}")
+                safe_print(f"[X] Failed to get upload URL: {response.text[:100]}")
                 return None
             
             upload_data = response.json()
             upload_url = upload_data.get("upload_url")
             
             # Step 2: Upload the file
-            print(f"📤 Uploading {video_path.name}...")
+            safe_print(f"[*] Uploading {video_path.name}...")
             with open(video_path, "rb") as f:
                 files = {"file": (video_path.name, f, "video/mp4")}
-                response = requests.post(upload_url, files=files)
+                response = requests.post(upload_url, files=files, timeout=300)
             
             if response.status_code != 200:
-                print(f"❌ Upload failed: {response.text}")
+                safe_print(f"[X] Upload failed: {response.text[:100]}")
                 return None
             
             file_url = response.json().get("url")
             
             # Step 3: Create video entry
-            print(f"📤 Creating video entry...")
+            safe_print(f"[*] Creating video entry...")
             video_data = {
                 "url": file_url,
                 "title": title[:255],  # Dailymotion limit
@@ -192,14 +221,14 @@ class DailymotionUploader:
             if response.status_code in [200, 201]:
                 video_id = response.json().get("id")
                 video_url = f"https://www.dailymotion.com/video/{video_id}"
-                print(f"✅ Uploaded to Dailymotion: {video_url}")
+                safe_print(f"[OK] Uploaded to Dailymotion: {video_url}")
                 return video_id
             else:
-                print(f"❌ Failed to create video: {response.text}")
+                safe_print(f"[X] Failed to create video: {response.text[:100]}")
                 return None
                 
         except Exception as e:
-            print(f"❌ Upload error: {e}")
+            safe_print(f"[X] Upload error: {e}")
             return None
     
     def get_upload_limit_status(self) -> Dict:
