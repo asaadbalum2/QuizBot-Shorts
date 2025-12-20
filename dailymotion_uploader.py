@@ -82,17 +82,22 @@ class DailymotionUploader:
                 "username": self.username,
                 "password": self.password,
                 "scope": "manage_videos"
-            })
+            }, timeout=30)
             
-            if response.status_code == 200:
-                data = response.json()
-                self.access_token = data.get("access_token")
-                print("✅ Dailymotion authenticated")
+            data = response.json()
+            
+            if response.status_code == 200 and "access_token" in data:
+                self.access_token = data["access_token"]
+                print(f"✅ Dailymotion authenticated (token length: {len(self.access_token)})")
                 return True
             else:
-                print(f"❌ Auth failed: {response.text}")
+                error = data.get("error_description", data.get("error", response.text[:200]))
+                print(f"❌ Dailymotion auth failed: {error}")
                 return False
                 
+        except requests.exceptions.Timeout:
+            print("❌ Dailymotion auth timeout")
+            return False
         except Exception as e:
             print(f"❌ Auth error: {e}")
             return False

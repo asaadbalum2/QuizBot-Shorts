@@ -305,3 +305,5 @@ if __name__ == "__main__":
         print(f"   Value: {topic.get('the_value_delivered', 'N/A')}")
         print(f"   Timeliness: {topic.get('timeliness_score', '?')}/10")
 
+
+

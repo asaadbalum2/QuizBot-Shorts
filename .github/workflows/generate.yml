@@ -119,26 +119,31 @@ jobs:
             python trending_content.py 50 --no-ai
           fi
 
-      - name: Generate Professional Videos (V2)
+      - name: Generate AI Viral Videos (Multi-Type)
         run: |
           BATCH_SIZE="${{ github.event.inputs.batch_size || '3' }}"
           TEST_ONLY="${{ github.event.inputs.test_only || 'false' }}"
           USE_V2="${{ github.event.inputs.use_v2 || 'true' }}"
           
-          if [ "$USE_V2" = "true" ]; then
-            SCRIPT="script_v2.py"
-            echo "Using V2 PROFESSIONAL generator"
-          else
-            SCRIPT="script.py"
-            echo "Using V1 basic generator"
-          fi
+          echo "🧠 Generating $BATCH_SIZE AI-powered viral videos..."
+          echo "   Types: life_hack, psychology_fact, scary_facts, money_facts, AI quotes"
           
-          if [ "$TEST_ONLY" = "true" ]; then
-            echo "TEST MODE - Generating $BATCH_SIZE videos WITHOUT upload..."
-            python $SCRIPT --batch $BATCH_SIZE --no-upload
+          if [ "$USE_V2" = "true" ]; then
+            # Use AI multi-type generator for viral content variety
+            if [ "$TEST_ONLY" = "true" ]; then
+              echo "TEST MODE - Generating WITHOUT upload..."
+              python generate_multi.py --type random --count $BATCH_SIZE --no-upload
+            else
+              echo "Generating WITH upload..."
+              python generate_multi.py --type random --count $BATCH_SIZE --upload
+            fi
           else
-            echo "Generating $BATCH_SIZE videos WITH upload..."
-            python $SCRIPT --batch $BATCH_SIZE --upload
+            # Fallback to quiz-only V1
+            if [ "$TEST_ONLY" = "true" ]; then
+              python script_v2.py --batch $BATCH_SIZE --no-upload
+            else
+              python script_v2.py --batch $BATCH_SIZE --upload
+            fi
           fi
         env:
           AUTO_UPLOAD: ${{ github.event.inputs.test_only != 'true' }}

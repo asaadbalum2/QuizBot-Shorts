@@ -538,8 +538,12 @@ async def main():
                         default="ai", help="Video type (use 'ai' for AI-suggested topics)")
     parser.add_argument("--count", type=int, default=1, help="Number of videos")
     parser.add_argument("--upload", action="store_true", help="Upload to YouTube")
+    parser.add_argument("--no-upload", action="store_true", dest="no_upload", help="Skip upload (test mode)")
     
     args = parser.parse_args()
+    
+    # Determine if we should upload
+    should_upload = args.upload and not args.no_upload
     
     print("=" * 60)
     print("🎬 ViralShorts Factory - AI-Powered Generator")
@@ -658,6 +662,58 @@ async def main():
     print(f"\n{'=' * 60}")
     print(f"✅ Generated {generated}/{args.count} videos")
     print(f"{'=' * 60}")
+    
+    # Upload if requested
+    if should_upload and generated > 0:
+        print("\n📤 Uploading videos to platforms...")
+        
+        import glob
+        videos = glob.glob(str(OUTPUT_DIR / "*.mp4"))
+        
+        # YouTube Upload
+        try:
+            from youtube_uploader import upload_to_youtube
+            for video_path in videos:
+                filename = os.path.basename(video_path)
+                title = filename.replace('.mp4', '').replace('_', ' ').title()[:100]
+                
+                print(f"\n   📺 Uploading to YouTube: {title}")
+                result = upload_to_youtube(
+                    video_path,
+                    title=title,
+                    description="Follow for more viral content! #shorts #viral #facts",
+                    tags=["shorts", "viral", "facts", "trending"]
+                )
+                if result:
+                    print(f"   ✅ YouTube: {result}")
+        except Exception as e:
+            print(f"   ⚠️ YouTube upload error: {e}")
+        
+        # Dailymotion Upload
+        try:
+            from dailymotion_uploader import DailymotionUploader
+            dm = DailymotionUploader()
+            if dm.is_configured:
+                for video_path in videos:
+                    filename = os.path.basename(video_path)
+                    title = filename.replace('.mp4', '').replace('_', ' ').title()[:100]
+                    
+                    print(f"\n   📺 Uploading to Dailymotion: {title}")
+                    result = dm.upload_video(
+                        video_path,
+                        title=title,
+                        description="Follow for more viral content! #shorts #viral",
+                        tags=["viral", "shorts", "facts"]
+                    )
+                    if result:
+                        print(f"   ✅ Dailymotion: {result}")
+            else:
+                print("   ⚠️ Dailymotion not configured")
+        except Exception as e:
+            print(f"   ⚠️ Dailymotion upload error: {e}")
+    
+    elif not should_upload:
+        print("\n📁 Videos saved locally (upload skipped)")
 
 
 if __name__ == "__main__":

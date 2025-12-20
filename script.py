@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-ViralShorts - Autonomous "Would You Rather" Video Generator for YouTube Shorts
+QuizBot - Autonomous "Would You Rather" Video Generator for YouTube Shorts
 Zero-Cost Stack: edge-tts + moviepy + local assets
 """
 
@@ -10,25 +10,6 @@ import os
 import random
 import sys
 from pathlib import Path
-
-# Fix Pillow 10+ compatibility (ANTIALIAS was removed)
-from PIL import Image
-if not hasattr(Image, 'ANTIALIAS'):
-    Image.ANTIALIAS = Image.Resampling.LANCZOS
-
-# Configure ImageMagick for Windows before importing moviepy
-if sys.platform == "win32":
-    import shutil
-    # Try to find ImageMagick
-    magick_paths = [
-        r"C:\Program Files\ImageMagick-7.1.2-Q16-HDRI\magick.exe",
-        r"C:\Program Files\ImageMagick-7.1.1-Q16-HDRI\magick.exe",
-        shutil.which("magick"),
-    ]
-    for path in magick_paths:
-        if path and os.path.exists(path):
-            os.environ["IMAGEMAGICK_BINARY"] = path
-            break
 
 import edge_tts
 from moviepy.editor import (
@@ -377,7 +358,7 @@ async def generate_video(question: dict, output_filename: str = None):
         "RESULTS!",
         fontsize=80,
         font="Arial-Bold",
-        color='gold',
+        color=(255, 215, 0),  # Gold
         stroke_color='black',
         stroke_width=3
     )
@@ -488,70 +469,6 @@ async def batch_generate(count: int = 5):
     return generated
 
 
-def upload_to_youtube(video_path: str, question: dict):
-    """Upload video to YouTube."""
-    try:
-        from youtube_uploader import upload_quiz_video
-        print("\n📤 Uploading to YouTube...")
-        result = upload_quiz_video(video_path, question)
-        print(f"🎉 Video live at: {result['url']}")
-        return result
-    except ImportError:
-        print("⚠️ YouTube uploader not available. Skipping upload.")
-        return None
-    except Exception as e:
-        print(f"❌ Upload failed: {e}")
-        return None
-
-
-async def generate_and_upload(count: int = 1, upload: bool = True):
-    """Generate videos and optionally upload to YouTube."""
-    print(f"\n🚀 Generating {count} video(s)...")
-    
-    with open(QUESTIONS_FILE, 'r', encoding='utf-8') as f:
-        questions = json.load(f)
-    
-    random.shuffle(questions)
-    selected = questions[:count]
-    
-    results = []
-    for i, question in enumerate(selected, 1):
-        print(f"\n{'='*50}")
-        print(f"📹 Video {i}/{count}")
-        print(f"{'='*50}")
-        
-        try:
-            video_path = await generate_video(question)
-            
-            if upload and video_path:
-                upload_result = upload_to_youtube(video_path, question)
-                results.append({
-                    'video': video_path,
-                    'question': question,
-                    'upload': upload_result
-                })
-            else:
-                results.append({
-                    'video': video_path,
-                    'question': question,
-                    'upload': None
-                })
-                
-        except Exception as e:
-            print(f"❌ Error: {e}")
-            continue
-    
-    # Summary
-    uploaded = sum(1 for r in results if r.get('upload'))
-    print(f"\n{'='*50}")
-    print(f"📊 COMPLETE!")
-    print(f"   Generated: {len(results)}/{count}")
-    print(f"   Uploaded: {uploaded}/{len(results)}")
-    print(f"{'='*50}")
-    
-    return results
-
-
 def main():
     """Main entry point."""
     ensure_directories()
@@ -564,20 +481,23 @@ def main():
         sys.exit(1)
     
     # Parse arguments
-    import argparse
-    parser = argparse.ArgumentParser(description="ViralShorts - Would You Rather Video Generator")
-    parser.add_argument("--batch", "-b", type=int, default=1, help="Number of videos to generate")
-    parser.add_argument("--upload", "-u", action="store_true", help="Upload to YouTube after generating")
-    parser.add_argument("--no-upload", action="store_true", help="Don't upload (just generate)")
-    
-    args = parser.parse_args()
-    
-    # Determine if we should upload
-    should_upload = args.upload or (os.environ.get('AUTO_UPLOAD', '').lower() == 'true')
-    if args.no_upload:
-        should_upload = False
-    
-    asyncio.run(generate_and_upload(count=args.batch, upload=should_upload))
+    if len(sys.argv) > 1:
+        if sys.argv[1] == "--batch":
+            count = int(sys.argv[2]) if len(sys.argv) > 2 else 5
+            asyncio.run(batch_generate(count))
+        elif sys.argv[1] == "--help":
+            print("QuizBot - Would You Rather Video Generator")
+            print("\nUsage:")
+            print("  python script.py           Generate a single random video")
+            print("  python script.py --batch N Generate N videos")
+            print("  python script.py --help    Show this help message")
+        else:
+            print(f"Unknown argument: {sys.argv[1]}")
+            print("Use --help for usage information.")
+    else:
+        # Generate single video
+        question = load_random_question()
+        asyncio.run(generate_video(question))
 
 
 if __name__ == "__main__":
