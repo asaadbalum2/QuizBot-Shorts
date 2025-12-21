@@ -117,9 +117,10 @@ jobs:
           # - YouTube: ~6 videos/day (safe limit) = 1 per run × 6 runs
           # - Dailymotion: ~50 videos/day = 8 per run × 6 runs
           
-          YOUTUBE_BATCH="${{ github.event.inputs.batch_size || '1' }}"
-          DAILYMOTION_EXTRA="${{ github.event.inputs.dailymotion_extra || '7' }}"
-          TEST_ONLY="${{ github.event.inputs.test_only || 'false' }}"
+          # Set defaults for scheduled runs (inputs are empty on schedule trigger)
+          YOUTUBE_BATCH="${BATCH_SIZE:-1}"
+          DAILYMOTION_EXTRA="${DM_EXTRA:-7}"
+          TEST_ONLY="${TEST_MODE:-false}"
           
           echo "=============================================="
           echo "   VIRALSHORTS FACTORY v7.0"
@@ -153,39 +154,15 @@ jobs:
               python pro_video_generator.py --count 1 --no-upload
               
               # Upload to Dailymotion ONLY (skip YouTube)
-              LATEST_VIDEO=$(ls -t output/*.mp4 2>/dev/null | head -1)
-              if [ -n "$LATEST_VIDEO" ]; then
-                python -c "
-import sys
-sys.path.insert(0, '.')
-from dailymotion_uploader import DailymotionUploader
-import json
-import os
-
-video_path = '$LATEST_VIDEO'
-meta_path = video_path.replace('.mp4', '_meta.json')
-
-title = 'Amazing Fact'
-description = 'Follow for more!'
-tags = ['shorts', 'viral', 'facts']
-
-if os.path.exists(meta_path):
-    with open(meta_path) as f:
-        data = json.load(f)
-        metadata = data.get('metadata', {})
-        title = metadata.get('title', title)[:100]
-        description = metadata.get('description', description)
-        tags = [h.replace('#','') for h in metadata.get('hashtags', tags)]
-
-dm = DailymotionUploader()
-if dm.is_configured:
-    result = dm.upload_video(video_path, title=title, description=description, tags=tags, channel='lifestyle')
-    print(f'[OK] Dailymotion: {result}')
-"
-              fi
+              python upload_to_dailymotion_only.py
             done
           fi
         env:
+          # Input parameters (with defaults for scheduled runs)
+          BATCH_SIZE: ${{ github.event.inputs.batch_size }}
+          DM_EXTRA: ${{ github.event.inputs.dailymotion_extra }}
+          TEST_MODE: ${{ github.event.inputs.test_only }}
+          # API Keys
           AUTO_UPLOAD: ${{ github.event.inputs.test_only != 'true' }}
           DEV_EVALUATE: ${{ github.event.inputs.test_only }}
           YOUTUBE_CLIENT_ID: ${{ secrets.YOUTUBE_CLIENT_ID }}
@@ -194,7 +171,6 @@ if dm.is_configured:
           PEXELS_API_KEY: ${{ secrets.PEXELS_API_KEY }}
           GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-          # Dailymotion credentials for multi-platform upload
           DAILYMOTION_API_KEY: ${{ secrets.DAILYMOTION_API_KEY }}
           DAILYMOTION_API_SECRET: ${{ secrets.DAILYMOTION_API_SECRET }}
           DAILYMOTION_USERNAME: ${{ secrets.DAILYMOTION_USERNAME }}
