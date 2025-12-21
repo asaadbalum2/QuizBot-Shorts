@@ -306,43 +306,12 @@ class MasterAI:
     def stage1_decide_video_concept(self, hint: str = None, batch_tracker: BatchTracker = None) -> Dict:
         """
         AI decides EVERYTHING about the video concept.
-        VARIETY ENFORCED: Avoids categories/topics already used in this batch.
-        CATEGORIES: AI-suggested based on current trends.
-        OPTIMIZATION: Uses pre-generated concepts if available (saves 50% quota!)
+        PRIMARY: Real-time AI generation (best quality, freshest trends)
+        FALLBACK: Pre-generated concepts (only if AI fails due to quota)
         """
         safe_print("\n[STAGE 1] AI deciding video concept...")
         
-        # TRY to use pre-generated concept (saves API quota!)
-        try:
-            from pre_work_fetcher import get_next_concept, has_valid_data
-            if has_valid_data():
-                concept = get_next_concept()
-                if concept:
-                    safe_print("   [CACHED] Using pre-generated concept (saves quota!)")
-                    # Map pre-generated concept to expected format
-                    result = {
-                        'category': concept.get('category', 'psychology'),
-                        'specific_topic': concept.get('topic', 'Amazing Fact'),
-                        'phrase_count': 6,
-                        'voice_style': concept.get('voice_style', 'energetic'),
-                        'music_mood': concept.get('music_mood', 'upbeat'),
-                        'target_duration_seconds': concept.get('target_duration', 30),
-                        'hook': concept.get('hook', '')
-                    }
-                    # Track usage
-                    if batch_tracker:
-                        batch_tracker.used_categories.append(result['category'])
-                        batch_tracker.used_topics.append(result['specific_topic'])
-                    
-                    safe_print(f"   Category: {result['category']}")
-                    safe_print(f"   Topic: {result['specific_topic']}")
-                    return result
-        except ImportError:
-            pass  # pre_work_fetcher not available
-        except Exception as e:
-            safe_print(f"   [!] Pre-generated concept error: {e}")
-        
-        # Fallback: Generate concept with AI (original behavior)
+        # PRIMARY: Real-time AI generation (BEST QUALITY)
         # Get AI-suggested trending categories (dynamic, not hardcoded!)
         trending_categories = get_ai_trending_categories(self.groq_key)
         
@@ -437,8 +406,83 @@ OUTPUT JSON ONLY. Be creative and strategic - NO REPETITION!"""
             safe_print(f"   Voice: {result.get('voice_style', 'N/A')}")
             safe_print(f"   Music: {result.get('music_mood', 'N/A')}")
             safe_print(f"   Duration: ~{result.get('target_duration_seconds', 'N/A')}s")
+            
+            # Save successful concept as backup for future fallback
+            self._save_concept_backup(result)
+            
+            return result
         
-        return result
+        # FALLBACK: If AI failed (quota exhausted), try pre-generated concepts
+        safe_print("   [!] AI generation failed, trying pre-generated fallback...")
+        try:
+            from pre_work_fetcher import get_next_concept, has_valid_data
+            if has_valid_data():
+                concept = get_next_concept()
+                if concept:
+                    safe_print("   [FALLBACK] Using pre-generated concept")
+                    result = {
+                        'category': concept.get('category', 'psychology'),
+                        'specific_topic': concept.get('topic', 'Amazing Fact'),
+                        'phrase_count': 6,
+                        'voice_style': concept.get('voice_style', 'energetic'),
+                        'music_mood': concept.get('music_mood', 'upbeat'),
+                        'target_duration_seconds': concept.get('target_duration', 30),
+                    }
+                    if batch_tracker:
+                        batch_tracker.used_categories.append(result['category'])
+                        batch_tracker.used_topics.append(result['specific_topic'])
+                    return result
+        except Exception as e:
+            safe_print(f"   [!] Fallback error: {e}")
+        
+        # LAST RESORT: Use previously saved backup
+        backup = self._load_concept_backup()
+        if backup:
+            safe_print("   [LAST RESORT] Using saved backup concept")
+            return backup
+        
+        # Ultimate fallback
+        safe_print("   [!] Concept generation failed completely")
+        return {
+            'category': 'psychology',
+            'specific_topic': 'Mind-Blowing Fact',
+            'phrase_count': 5,
+            'voice_style': 'energetic',
+            'music_mood': 'dramatic',
+            'target_duration_seconds': 30
+        }
+    
+    def _save_concept_backup(self, concept: Dict):
+        """Save successful concept as backup for future use."""
+        try:
+            backup_file = Path("./data/concept_backup.json")
+            backup_file.parent.mkdir(exist_ok=True)
+            
+            backups = []
+            if backup_file.exists():
+                with open(backup_file, 'r') as f:
+                    backups = json.load(f)
+            
+            backups.append(concept)
+            backups = backups[-20:]  # Keep last 20
+            
+            with open(backup_file, 'w') as f:
+                json.dump(backups, f)
+        except:
+            pass
+    
+    def _load_concept_backup(self) -> Dict:
+        """Load a random backup concept."""
+        try:
+            backup_file = Path("./data/concept_backup.json")
+            if backup_file.exists():
+                with open(backup_file, 'r') as f:
+                    backups = json.load(f)
+                if backups:
+                    return random.choice(backups)
+        except:
+            pass
+        return None
     
     # ========================================================================
     # STAGE 2: AI Creates the Content Based on Its Own Decisions
