@@ -536,9 +536,15 @@ Phrase Count: {phrase_count} phrases
 
 === CREATE EXACTLY {phrase_count} PHRASES ===
 Structure:
-1. HOOK (pattern interrupt, curiosity)
+1. HOOK (pattern interrupt, curiosity - make them STOP scrolling)
 2-{phrase_count-1}. BUILD (problem, context, solution parts)
-{phrase_count}. PAYOFF (transformation, call to action)
+{phrase_count}. PAYOFF + ENGAGEMENT BAIT (transformation + question for comments)
+
+ENGAGEMENT RULE (v7.16): 
+The LAST phrase MUST end with a question or call-to-comment like:
+- "What do you think?" or "Comment below!"
+- "Would you try this?" or "Which one would you choose?"
+- "Follow for more!" or "Save this for later!"
 
 === OUTPUT JSON ===
 {{
@@ -546,11 +552,12 @@ Structure:
         "Your attention-grabbing hook here",
         "The problem or context explained",
         "More detail or the solution",
-        "The payoff or call to action"
+        "The payoff PLUS engagement question like: Would you try this? Comment below!"
     ],
     "specific_value": "What SPECIFIC action can viewer take after watching?",
     "problem_solved": "What problem did we solve?",
-    "solution_given": "What specific solution did we provide?"
+    "solution_given": "What specific solution did we provide?",
+    "engagement_hook": "The question/CTA in the final phrase"
 }}
 
 CRITICAL: Do NOT include "Phrase 1:", "Phrase 2:" etc. in the phrases - just the text itself!
@@ -1386,6 +1393,19 @@ async def render_video(content: Dict, broll_paths: List[str], output_path: str,
                     bg = bg.loop(duration=dur)
                 bg = bg.subclip(0, dur)
                 
+                # v7.16: Ken Burns zoom effect for dynamic feel
+                # Subtle 1.0→1.08 zoom over clip duration
+                try:
+                    def ken_burns_resize(t):
+                        # Slow zoom from 1.0 to 1.08 over duration
+                        zoom = 1.0 + 0.08 * (t / dur)
+                        return zoom
+                    bg = bg.resize(ken_burns_resize)
+                    # Re-center after zoom
+                    bg = bg.set_position(('center', 'center'))
+                except:
+                    pass  # Skip if zoom fails
+                
                 # Apply cinematic effects
                 bg = bg.fx(vfx.colorx, 0.6)  # Slight darken for text readability
                 
@@ -1441,9 +1461,18 @@ async def render_video(content: Dict, broll_paths: List[str], output_path: str,
         
         segment = CompositeVideoClip(layers, size=(VIDEO_WIDTH, VIDEO_HEIGHT))
         segment = segment.set_duration(dur)
+        
+        # v7.16: Add smooth crossfade transitions between segments
+        # Skip first segment fade-in, skip last segment fade-out
+        fade_duration = 0.15  # 150ms crossfade
+        if i > 0:  # Fade in for all except first
+            segment = segment.crossfadein(fade_duration)
+        if i < len(phrases) - 1:  # Fade out for all except last
+            segment = segment.crossfadeout(fade_duration)
+        
         segments.append(segment)
     
-    safe_print("   [*] Concatenating segments...")
+    safe_print("   [*] Concatenating segments with transitions...")
     final_video = concatenate_videoclips(segments, method="compose")
     
     progress_clip = renderer.create_progress_bar(final_video.duration)
