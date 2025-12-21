@@ -25,23 +25,27 @@ on:
           - 'true'
 
   # ENABLED - Production mode active!
-  # v7.15: OPTIMIZED SCHEDULE FOR MAXIMUM FREE THROUGHPUT
+  # v7.17: MAXIMUM THROUGHPUT CONFIGURATION
   # =====================================================
-  # Quota Analysis:
-  #   - Groq: 100K tokens/day, ~3,900 tokens/video = 25 videos/day max
-  #   - Dailymotion: 4 uploads/hour (15-20 min delays implemented)
-  #   - YouTube: 1 best video per batch (strategic selection)
-  # 
-  # Optimal Config:
-  #   - 4 videos per batch (fits 4/hour DM limit with delays)
-  #   - 4 batches per day = 16 videos/day (64% of Groq quota)
-  #   - Spreads uploads evenly across 24 hours
+  # HARD LIMITS:
+  #   - YouTube: 10,000 units/day ÷ 1,600 = 6 uploads/day MAX
+  #   - Groq: 100K tokens/day ÷ 3,900 = 25 videos/day MAX
+  #   - Dailymotion: 4 uploads/hour = 96/day (not the bottleneck)
+  #
+  # MAXIMUM CONFIG (v7.17):
+  #   - 6 batches per day (every 4 hours)
+  #   - 4 videos per batch = 24 videos/day
+  #   - YouTube: 6 uploads/day (MAXIMUM!)
+  #   - Dailymotion: 24 uploads/day
+  #   - Groq: 93,600 tokens (93.6% of quota)
   # =====================================================
   schedule:
-    - cron: '0 5 * * *'   # 5 AM UTC - Early morning batch
-    - cron: '0 11 * * *'  # 11 AM UTC - Late morning batch  
-    - cron: '0 17 * * *'  # 5 PM UTC - Afternoon batch
-    - cron: '0 23 * * *'  # 11 PM UTC - Evening batch
+    - cron: '0 0 * * *'   # 00:00 UTC - Midnight batch
+    - cron: '0 4 * * *'   # 04:00 UTC - Early morning batch
+    - cron: '0 8 * * *'   # 08:00 UTC - Morning batch
+    - cron: '0 12 * * *'  # 12:00 UTC - Noon batch
+    - cron: '0 16 * * *'  # 16:00 UTC - Afternoon batch
+    - cron: '0 20 * * *'  # 20:00 UTC - Evening batch
 
 jobs:
   generate:
@@ -106,13 +110,14 @@ jobs:
         continue-on-error: true
 
       # ====================================================================
-      # v7.15: OPTIMIZED BATCH GENERATION - MAXIMUM FREE THROUGHPUT
-      # - Generate 4 videos with ENFORCED VARIETY
+      # v7.17: MAXIMUM THROUGHPUT - 6 YouTube + 24 Dailymotion per day
+      # - Generate 4 videos per batch with ENFORCED VARIETY
       # - AI scores each video (1-10)
-      # - BEST video goes to YouTube (strategic selection)
-      # - All 4 videos go to Dailymotion (with 15-20min delays)
+      # - BEST video goes to YouTube (6 per day = MAXIMUM!)
+      # - All 4 videos go to Dailymotion (24 per day)
+      # - Runs 6 times per day (every 4 hours)
       # ====================================================================
-      - name: Generate Videos (v7.15 - Optimized Throughput)
+      - name: Generate Videos (v7.17 - Maximum Throughput)
         run: |
           # Set defaults for scheduled runs
           BATCH="${{ github.event.inputs.batch_size }}"
@@ -121,11 +126,12 @@ jobs:
           TEST_ONLY="${TEST_ONLY:-false}"
           
           echo "=============================================="
-          echo "   VIRALSHORTS FACTORY v7.15"
-          echo "   OPTIMIZED FOR MAXIMUM FREE THROUGHPUT"
+          echo "   VIRALSHORTS FACTORY v7.17"
+          echo "   MAXIMUM THROUGHPUT CONFIGURATION"
           echo "   Batch: $BATCH videos"
-          echo "   YouTube: BEST video by AI score"
-          echo "   Dailymotion: All videos (4/hour limit respected)"
+          echo "   YouTube: BEST video (6/day MAXIMUM)"
+          echo "   Dailymotion: All videos (24/day)"
+          echo "   Schedule: 6 runs/day (every 4 hours)"
           echo "=============================================="
           
           if [ "$TEST_ONLY" = "true" ]; then
@@ -220,22 +226,25 @@ jobs:
 
       - name: Summary
         run: |
-          echo "## ViralShorts Factory v7.15 - Run Complete" >> $GITHUB_STEP_SUMMARY
+          echo "## ViralShorts Factory v7.17 - MAXIMUM THROUGHPUT" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "**Time:** $(date -u)" >> $GITHUB_STEP_SUMMARY
           echo "**Batch Size:** ${{ github.event.inputs.batch_size || '4' }}" >> $GITHUB_STEP_SUMMARY
           echo "**Test Mode:** ${{ github.event.inputs.test_only || 'false' }}" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "### v7.15 Optimizations" >> $GITHUB_STEP_SUMMARY
-          echo "- **16 videos/day** (4 per batch x 4 batches)" >> $GITHUB_STEP_SUMMARY
-          echo "- Uses 64% of Groq quota (optimal without waste)" >> $GITHUB_STEP_SUMMARY
-          echo "- Dynamic fonts (auto-downloads Google Fonts)" >> $GITHUB_STEP_SUMMARY
-          echo "- Dynamic music (AI selects, tries Pixabay API first)" >> $GITHUB_STEP_SUMMARY
-          echo "- Variety enforced (no repetition in batch)" >> $GITHUB_STEP_SUMMARY
+          echo "### v7.17 MAXIMUM Configuration" >> $GITHUB_STEP_SUMMARY
+          echo "- **24 videos/day** (4 per batch x 6 batches)" >> $GITHUB_STEP_SUMMARY
+          echo "- **YouTube: 6 uploads/day (MAXIMUM!)**" >> $GITHUB_STEP_SUMMARY
+          echo "- **Dailymotion: 24 uploads/day**" >> $GITHUB_STEP_SUMMARY
+          echo "- Uses 93.6% of Groq quota (near maximum)" >> $GITHUB_STEP_SUMMARY
+          echo "- Schedule: Every 4 hours (6 runs/day)" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "### Platforms" >> $GITHUB_STEP_SUMMARY
-          echo "- YouTube Shorts: Best video per batch (4/day)" >> $GITHUB_STEP_SUMMARY
-          echo "- Dailymotion: All videos (16/day with rate limits)" >> $GITHUB_STEP_SUMMARY
+          echo "### Quality Features" >> $GITHUB_STEP_SUMMARY
+          echo "- Ken Burns zoom on B-roll" >> $GITHUB_STEP_SUMMARY
+          echo "- Crossfade transitions" >> $GITHUB_STEP_SUMMARY
+          echo "- Comment bait for engagement" >> $GITHUB_STEP_SUMMARY
+          echo "- Subscribe CTA overlay" >> $GITHUB_STEP_SUMMARY
+          echo "- 6 animation types" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### Channels" >> $GITHUB_STEP_SUMMARY
           echo "- YouTube: https://www.youtube.com/channel/UC4Y6O0ubwl0_ZQsLq2EteTQ" >> $GITHUB_STEP_SUMMARY

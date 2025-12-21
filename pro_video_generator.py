@@ -1552,39 +1552,77 @@ async def generate_pro_video(hint: str = None, batch_tracker: BatchTracker = Non
     """
     Generate a video with 100% AI-driven decisions.
     VARIETY ENFORCED through batch_tracker.
+    
+    v7.17: Enhanced robustness - 10/10 error handling
     """
     run_id = random.randint(10000, 99999)
     
     safe_print("=" * 70)
-    safe_print(f"   VIRALSHORTS FACTORY v7.1 - 100% AI-DRIVEN + VARIETY ENFORCED")
+    safe_print(f"   VIRALSHORTS FACTORY v7.17 - MAXIMUM THROUGHPUT")
     safe_print(f"   Run: #{run_id}")
     safe_print("=" * 70)
     
-    ai = MasterAI()
+    # v7.17: Comprehensive initialization with fallback
+    try:
+        ai = MasterAI()
+    except Exception as e:
+        safe_print(f"[!] AI initialization failed: {e}")
+        return None
+        
     if not ai.client and not ai.gemini_model:
         safe_print("[!] No AI available")
         return None
     
     # Stage 1: AI decides concept (with variety enforcement)
-    concept = ai.stage1_decide_video_concept(hint, batch_tracker)
+    try:
+        concept = ai.stage1_decide_video_concept(hint, batch_tracker)
+    except Exception as e:
+        safe_print(f"[!] Concept generation error: {e}")
+        concept = None
+        
     if not concept:
-        safe_print("[!] Concept generation failed")
-        return None
+        safe_print("[!] Concept generation failed - trying fallback")
+        # v7.17: Emergency fallback concept
+        concept = {
+            'category': 'psychology',
+            'specific_topic': 'Surprising Human Behavior Fact',
+            'phrase_count': 5,
+            'voice_style': 'energetic',
+            'music_mood': 'upbeat',
+            'target_duration_seconds': 30
+        }
     
     # Stage 2: AI creates content
-    content = ai.stage2_create_content(concept)
+    try:
+        content = ai.stage2_create_content(concept)
+    except Exception as e:
+        safe_print(f"[!] Content creation error: {e}")
+        content = None
+        
     if not content or not content.get('phrases'):
         safe_print("[!] Content creation failed")
         return None
     
-    # Stage 3: AI evaluates and enhances
-    content = ai.stage3_evaluate_enhance(content)
+    # Stage 3: AI evaluates and enhances (non-critical - continue on failure)
+    try:
+        content = ai.stage3_evaluate_enhance(content)
+    except Exception as e:
+        safe_print(f"[!] Enhancement skipped: {e}")
     
     # Stage 4: AI generates B-roll keywords
-    broll_keywords = ai.stage4_broll_keywords(content.get('phrases', []))
+    try:
+        broll_keywords = ai.stage4_broll_keywords(content.get('phrases', []))
+    except Exception as e:
+        safe_print(f"[!] B-roll keyword error: {e}")
+        # Fallback keywords
+        broll_keywords = ['motivation', 'success', 'nature', 'technology', 'people']
     
     # Stage 5: AI generates metadata
-    metadata = ai.stage5_metadata(content)
+    try:
+        metadata = ai.stage5_metadata(content)
+    except Exception as e:
+        safe_print(f"[!] Metadata generation error: {e}")
+        metadata = None
     
     # FALLBACK: Ensure we always have a title (v7.13 fix)
     if not metadata or not metadata.get('title'):
@@ -1691,7 +1729,12 @@ async def upload_video(video_path: str, metadata: Dict, youtube: bool = True, da
     results = {"youtube": None, "dailymotion": None}
     
     title = metadata.get('title', 'Amazing Fact')[:100]
-    description = metadata.get('description', 'Follow for more!')[:5000]
+    base_description = metadata.get('description', 'Follow for more!')
+    
+    # v7.17: Add required attributions for TOS compliance
+    attribution = "\n\n---\nMusic: https://www.bensound.com (Royalty Free)"
+    description = (base_description + attribution)[:5000]
+    
     hashtags = metadata.get('hashtags', ['#shorts', '#viral'])
     tags = [h.replace('#', '').strip() for h in hashtags if h]
     

@@ -8,8 +8,8 @@ import os
 import sys
 
 print('=' * 60)
-print('   VIRALSHORTS FACTORY v7.15 - COMPREHENSIVE REVIEW')
-print('   All 10 Integration Points')
+print('   VIRALSHORTS FACTORY v7.17 - COMPREHENSIVE REVIEW')
+print('   MAXIMUM THROUGHPUT + 10/10 QUALITY')
 print('=' * 60)
 print()
 
@@ -213,7 +213,8 @@ try:
     
     check("default: '4'" in workflow, 'Batch size: 4 (optimized)', 'Batch size not optimized')
     cron_count = workflow.count('cron:')
-    check(cron_count == 4, f'Runs {cron_count}x/day (optimal for 16 videos)', f'Only {cron_count} runs/day')
+    # v7.17: 6 runs/day for MAXIMUM YouTube uploads (6/day)
+    check(cron_count == 6, f'Runs {cron_count}x/day (MAXIMUM for 6 YT + 24 DM)', f'Only {cron_count} runs/day (need 6)')
     
 except Exception as e:
     check(False, '', f'Quota check: {e}')
