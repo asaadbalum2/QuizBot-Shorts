@@ -1,0 +1,519 @@
+#!/usr/bin/env python3
+"""
+ViralShorts Factory - Persistent State Manager v1.0
+=====================================================
+
+Solves the ephemeral storage problem in GitHub Actions:
+- Saves state to JSON files that can be committed or saved as artifacts
+- Tracks uploads, analytics, and variety across runs
+- Prevents Dailymotion rate limit issues by tracking hourly uploads
+- Maintains variety history across batches (not just within batch)
+
+This is the CORE fix for analytics feedback and upload management!
+"""
+
+import os
+import json
+from datetime import datetime, timedelta
+from pathlib import Path
+from typing import Dict, List, Optional
+from dataclasses import dataclass, asdict, field
+import hashlib
+
+# State files - these MUST persist between runs
+STATE_DIR = Path("./data/persistent")
+STATE_DIR.mkdir(parents=True, exist_ok=True)
+
+UPLOAD_STATE_FILE = STATE_DIR / "upload_state.json"
+VARIETY_STATE_FILE = STATE_DIR / "variety_state.json"  
+ANALYTICS_STATE_FILE = STATE_DIR / "analytics_state.json"
+VIRAL_PATTERNS_FILE = STATE_DIR / "viral_patterns.json"
+
+
+def safe_print(msg: str):
+    """Print with fallback for encoding issues."""
+    try:
+        print(msg)
+    except UnicodeEncodeError:
+        import re
+        print(re.sub(r'[^\x00-\x7F]+', '', msg))
+
+
+# =============================================================================
+# UPLOAD STATE - Prevents Dailymotion rate limits across runs
+# =============================================================================
+
+class UploadStateManager:
+    """
+    Tracks uploads across workflow runs to prevent rate limit issues.
+    
+    Dailymotion limit: 4 uploads per HOUR
+    This persists across runs to know when it's safe to upload again.
+    """
+    
+    def __init__(self):
+        self.state = self._load_state()
+    
+    def _load_state(self) -> Dict:
+        """Load upload state from file."""
+        try:
+            if UPLOAD_STATE_FILE.exists():
+                with open(UPLOAD_STATE_FILE, 'r') as f:
+                    return json.load(f)
+        except Exception as e:
+            safe_print(f"[!] Error loading upload state: {e}")
+        
+        return {
+            "dailymotion_uploads": [],  # List of timestamps
+            "youtube_uploads": [],
+            "last_updated": None
+        }
+    
+    def _save_state(self):
+        """Save state to file."""
+        self.state["last_updated"] = datetime.now().isoformat()
+        try:
+            with open(UPLOAD_STATE_FILE, 'w') as f:
+                json.dump(self.state, f, indent=2)
+        except Exception as e:
+            safe_print(f"[!] Error saving upload state: {e}")
+    
+    def _clean_old_entries(self, platform: str, hours: int = 1):
+        """Remove entries older than specified hours."""
+        key = f"{platform}_uploads"
+        cutoff = datetime.now() - timedelta(hours=hours)
+        
+        current_uploads = self.state.get(key, [])
+        # Keep only uploads within the last N hours
+        recent = [ts for ts in current_uploads 
+                  if datetime.fromisoformat(ts) > cutoff]
+        self.state[key] = recent
+    
+    def can_upload_dailymotion(self) -> bool:
+        """Check if we can upload to Dailymotion (4 per hour limit)."""
+        self._clean_old_entries("dailymotion", hours=1)
+        uploads_in_hour = len(self.state.get("dailymotion_uploads", []))
+        can_upload = uploads_in_hour < 4
+        
+        if not can_upload:
+            safe_print(f"[!] Dailymotion: {uploads_in_hour}/4 uploads this hour - WAIT")
+        else:
+            safe_print(f"[OK] Dailymotion: {uploads_in_hour}/4 uploads this hour - CAN UPLOAD")
+        
+        return can_upload
+    
+    def get_dailymotion_slots_available(self) -> int:
+        """Get number of Dailymotion upload slots available."""
+        self._clean_old_entries("dailymotion", hours=1)
+        uploads_in_hour = len(self.state.get("dailymotion_uploads", []))
+        return max(0, 4 - uploads_in_hour)
+    
+    def get_wait_time_dailymotion(self) -> int:
+        """Get seconds to wait before next Dailymotion upload is safe."""
+        self._clean_old_entries("dailymotion", hours=1)
+        uploads = self.state.get("dailymotion_uploads", [])
+        
+        if len(uploads) < 4:
+            return 0  # Can upload now
+        
+        # Find oldest upload in the hour and calculate when it expires
+        oldest = min([datetime.fromisoformat(ts) for ts in uploads])
+        expire_time = oldest + timedelta(hours=1)
+        wait_seconds = (expire_time - datetime.now()).total_seconds()
+        
+        return max(0, int(wait_seconds))
+    
+    def record_upload(self, platform: str, video_id: str = None):
+        """Record an upload for rate limiting."""
+        key = f"{platform}_uploads"
+        if key not in self.state:
+            self.state[key] = []
+        
+        self.state[key].append(datetime.now().isoformat())
+        self._save_state()
+        safe_print(f"[TRACK] Recorded {platform} upload #{len(self.state[key])} this hour")
+    
+    def get_youtube_uploads_today(self) -> int:
+        """Get YouTube uploads today (reset at midnight UTC)."""
+        self._clean_old_entries("youtube", hours=24)
+        return len(self.state.get("youtube_uploads", []))
+    
+    def can_upload_youtube(self) -> bool:
+        """Check if YouTube daily limit allows upload."""
+        uploads_today = self.get_youtube_uploads_today()
+        can_upload = uploads_today < 6  # 6 per day max
+        
+        if not can_upload:
+            safe_print(f"[!] YouTube: {uploads_today}/6 uploads today - WAIT")
+        else:
+            safe_print(f"[OK] YouTube: {uploads_today}/6 uploads today - CAN UPLOAD")
+        
+        return can_upload
+
+
+# =============================================================================
+# VARIETY STATE - Enforces variety across ALL runs (not just single batch)
+# =============================================================================
+
+class VarietyStateManager:
+    """
+    Tracks content variety across workflow runs to prevent repetition.
+    
+    Fixes the issue where variety was only enforced within single batch.
+    Now tracks last N items of each type to enforce variety across runs.
+    """
+    
+    def __init__(self, history_size: int = 20):
+        self.history_size = history_size
+        self.state = self._load_state()
+    
+    def _load_state(self) -> Dict:
+        """Load variety state from file."""
+        try:
+            if VARIETY_STATE_FILE.exists():
+                with open(VARIETY_STATE_FILE, 'r') as f:
+                    return json.load(f)
+        except Exception as e:
+            safe_print(f"[!] Error loading variety state: {e}")
+        
+        return {
+            "categories": [],
+            "topics": [],
+            "voices": [],
+            "music_moods": [],
+            "hooks": [],
+            "last_updated": None
+        }
+    
+    def _save_state(self):
+        """Save state to file."""
+        self.state["last_updated"] = datetime.now().isoformat()
+        try:
+            with open(VARIETY_STATE_FILE, 'w') as f:
+                json.dump(self.state, f, indent=2)
+        except Exception as e:
+            safe_print(f"[!] Error saving variety state: {e}")
+    
+    def get_exclusions(self, item_type: str, limit: int = 5) -> List[str]:
+        """Get list of items to exclude for variety."""
+        items = self.state.get(item_type, [])
+        return items[-limit:] if items else []
+    
+    def record_usage(self, item_type: str, value: str):
+        """Record an item usage."""
+        if item_type not in self.state:
+            self.state[item_type] = []
+        
+        self.state[item_type].append(value)
+        # Keep only last N items
+        self.state[item_type] = self.state[item_type][-self.history_size:]
+        self._save_state()
+    
+    def get_category_weights(self) -> Dict[str, float]:
+        """Get weighted probabilities for categories based on recency."""
+        recent_categories = self.state.get("categories", [])[-10:]
+        
+        # All available categories
+        all_categories = [
+            "psychology", "finance", "productivity", "health", 
+            "relationships", "science", "technology", "motivation",
+            "life_hacks", "history", "statistics", "mysteries",
+            "shocking_facts", "would_you_rather", "mind_tricks"
+        ]
+        
+        weights = {}
+        for cat in all_categories:
+            # Reduce weight for recently used categories
+            recency_count = recent_categories.count(cat)
+            weights[cat] = max(0.1, 1.0 - (recency_count * 0.3))
+        
+        # Normalize
+        total = sum(weights.values())
+        return {k: v/total for k, v in weights.items()}
+    
+    def pick_category_weighted(self, available: List[str]) -> str:
+        """Pick a category with weighting to favor less-used ones."""
+        import random
+        
+        weights = self.get_category_weights()
+        available_weights = {k: v for k, v in weights.items() if k in available}
+        
+        if not available_weights:
+            return random.choice(available)
+        
+        # Weighted random choice
+        items = list(available_weights.keys())
+        probs = list(available_weights.values())
+        total = sum(probs)
+        probs = [p/total for p in probs]
+        
+        return random.choices(items, weights=probs, k=1)[0]
+
+
+# =============================================================================
+# ANALYTICS STATE - Tracks performance across runs
+# =============================================================================
+
+class AnalyticsStateManager:
+    """
+    Tracks video analytics across runs for the feedback loop.
+    
+    Persists video metadata so we can fetch performance later.
+    """
+    
+    def __init__(self):
+        self.state = self._load_state()
+    
+    def _load_state(self) -> Dict:
+        """Load analytics state from file."""
+        try:
+            if ANALYTICS_STATE_FILE.exists():
+                with open(ANALYTICS_STATE_FILE, 'r') as f:
+                    return json.load(f)
+        except Exception as e:
+            safe_print(f"[!] Error loading analytics state: {e}")
+        
+        return {
+            "videos": [],  # List of video metadata
+            "top_performers": [],  # Videos with best performance
+            "learned_patterns": {},  # What we've learned works
+            "last_updated": None
+        }
+    
+    def _save_state(self):
+        """Save state to file."""
+        self.state["last_updated"] = datetime.now().isoformat()
+        try:
+            with open(ANALYTICS_STATE_FILE, 'w') as f:
+                json.dump(self.state, f, indent=2)
+        except Exception as e:
+            safe_print(f"[!] Error saving analytics state: {e}")
+    
+    def record_video(self, video_data: Dict):
+        """Record a generated video for analytics tracking."""
+        video_entry = {
+            "id": video_data.get("video_id", f"vid_{datetime.now().strftime('%Y%m%d_%H%M%S')}"),
+            "category": video_data.get("category"),
+            "topic": video_data.get("topic"),
+            "title": video_data.get("title"),
+            "hook": video_data.get("hook"),
+            "voice": video_data.get("voice"),
+            "music_mood": video_data.get("music_mood"),
+            "duration": video_data.get("duration"),
+            "score": video_data.get("score", 0),
+            "youtube_id": video_data.get("youtube_id"),
+            "dailymotion_id": video_data.get("dailymotion_id"),
+            "generated_at": datetime.now().isoformat(),
+            "performance": None  # Filled in later
+        }
+        
+        self.state["videos"].append(video_entry)
+        # Keep last 100 videos
+        self.state["videos"] = self.state["videos"][-100:]
+        self._save_state()
+        
+        safe_print(f"[ANALYTICS] Recorded video: {video_entry['category']}/{video_entry['topic'][:30]}")
+    
+    def update_performance(self, video_id: str, performance: Dict):
+        """Update performance data for a video."""
+        for video in self.state["videos"]:
+            if video.get("id") == video_id or video.get("youtube_id") == video_id:
+                video["performance"] = performance
+                self._save_state()
+                return True
+        return False
+    
+    def get_videos_for_analysis(self) -> List[Dict]:
+        """Get videos with performance data for AI analysis."""
+        return [v for v in self.state.get("videos", []) if v.get("performance")]
+    
+    def has_enough_data_for_analysis(self) -> bool:
+        """Check if we have enough data to run AI analysis."""
+        return len(self.get_videos_for_analysis()) >= 5
+    
+    def update_learned_patterns(self, patterns: Dict):
+        """Store patterns learned from analysis."""
+        self.state["learned_patterns"] = patterns
+        self._save_state()
+    
+    def get_learned_patterns(self) -> Dict:
+        """Get previously learned patterns."""
+        return self.state.get("learned_patterns", {})
+
+
+# =============================================================================
+# VIRAL PATTERNS - Stores patterns learned from successful channels
+# =============================================================================
+
+class ViralPatternsManager:
+    """
+    Stores and manages patterns learned from successful viral channels.
+    
+    This is the "learn from graduated channels" feature.
+    """
+    
+    def __init__(self):
+        self.patterns = self._load_patterns()
+    
+    def _load_patterns(self) -> Dict:
+        """Load viral patterns from file."""
+        try:
+            if VIRAL_PATTERNS_FILE.exists():
+                with open(VIRAL_PATTERNS_FILE, 'r') as f:
+                    return json.load(f)
+        except Exception as e:
+            safe_print(f"[!] Error loading viral patterns: {e}")
+        
+        # Default patterns based on research
+        return {
+            "title_patterns": [
+                "{number}% of people get this WRONG",
+                "This {thing} will change your {noun}",
+                "Why {experts} don't want you to know this",
+                "I tried {thing} for {duration} - here's what happened",
+                "The {adjective} truth about {topic}",
+                "Stop doing {bad_thing} - do THIS instead",
+                "{number} second trick that {benefit}",
+                "You've been {action} WRONG your whole life"
+            ],
+            "hook_patterns": [
+                "STOP scrolling! You need to see this",
+                "This will blow your mind in {seconds} seconds",
+                "What I'm about to tell you changed everything",
+                "The thing no one is talking about...",
+                "{Number}% of people fail this simple test",
+                "I can't believe this actually works",
+                "Before you scroll, watch this",
+                "This is the video I wish I saw years ago"
+            ],
+            "engagement_baits": [
+                "Comment '1' if you knew this!",
+                "Would you try this? Comment below!",
+                "Type your answer before the reveal!",
+                "Follow for part 2!",
+                "Save this for later!",
+                "Share with someone who needs this!",
+                "Which one would YOU choose? Comment!"
+            ],
+            "optimal_lengths": {
+                "hook": "7-12 words",
+                "total_video": "15-25 seconds",
+                "phrases": 3-5,
+                "cta": "5-10 words"
+            },
+            "proven_categories": [
+                "shocking_facts",
+                "would_you_rather", 
+                "money_tricks",
+                "psychology_hacks",
+                "life_shortcuts"
+            ],
+            "last_updated": None
+        }
+    
+    def _save_patterns(self):
+        """Save patterns to file."""
+        self.patterns["last_updated"] = datetime.now().isoformat()
+        try:
+            with open(VIRAL_PATTERNS_FILE, 'w') as f:
+                json.dump(self.patterns, f, indent=2)
+        except Exception as e:
+            safe_print(f"[!] Error saving viral patterns: {e}")
+    
+    def get_random_title_pattern(self) -> str:
+        """Get a random title pattern for AI to fill in."""
+        import random
+        return random.choice(self.patterns.get("title_patterns", []))
+    
+    def get_random_hook_pattern(self) -> str:
+        """Get a random hook pattern."""
+        import random
+        return random.choice(self.patterns.get("hook_patterns", []))
+    
+    def get_random_engagement_bait(self) -> str:
+        """Get a random engagement CTA."""
+        import random
+        return random.choice(self.patterns.get("engagement_baits", []))
+    
+    def update_patterns_from_analysis(self, new_patterns: Dict):
+        """Update patterns based on channel analysis."""
+        for key, values in new_patterns.items():
+            if key in self.patterns and isinstance(self.patterns[key], list):
+                # Add new patterns, avoid duplicates
+                for v in values:
+                    if v not in self.patterns[key]:
+                        self.patterns[key].append(v)
+                # Keep list manageable
+                self.patterns[key] = self.patterns[key][-30:]
+        
+        self._save_patterns()
+    
+    def get_optimal_video_length(self) -> int:
+        """Get optimal video length in seconds."""
+        return 20  # 15-25 second sweet spot
+
+
+# =============================================================================
+# GLOBAL MANAGERS - Singleton instances
+# =============================================================================
+
+_upload_manager = None
+_variety_manager = None
+_analytics_manager = None
+_viral_manager = None
+
+
+def get_upload_manager() -> UploadStateManager:
+    global _upload_manager
+    if _upload_manager is None:
+        _upload_manager = UploadStateManager()
+    return _upload_manager
+
+
+def get_variety_manager() -> VarietyStateManager:
+    global _variety_manager
+    if _variety_manager is None:
+        _variety_manager = VarietyStateManager()
+    return _variety_manager
+
+
+def get_analytics_manager() -> AnalyticsStateManager:
+    global _analytics_manager
+    if _analytics_manager is None:
+        _analytics_manager = AnalyticsStateManager()
+    return _analytics_manager
+
+
+def get_viral_manager() -> ViralPatternsManager:
+    global _viral_manager
+    if _viral_manager is None:
+        _viral_manager = ViralPatternsManager()
+    return _viral_manager
+
+
+if __name__ == "__main__":
+    print("=" * 60)
+    print("Testing Persistent State Manager")
+    print("=" * 60)
+    
+    # Test upload manager
+    upload = get_upload_manager()
+    print(f"\nDailymotion slots available: {upload.get_dailymotion_slots_available()}")
+    print(f"Can upload to Dailymotion: {upload.can_upload_dailymotion()}")
+    print(f"Can upload to YouTube: {upload.can_upload_youtube()}")
+    
+    # Test variety manager
+    variety = get_variety_manager()
+    print(f"\nCategory exclusions: {variety.get_exclusions('categories')}")
+    print(f"Category weights: {variety.get_category_weights()}")
+    
+    # Test analytics manager
+    analytics = get_analytics_manager()
+    print(f"\nVideos tracked: {len(analytics.state.get('videos', []))}")
+    print(f"Enough data for analysis: {analytics.has_enough_data_for_analysis()}")
+    
+    # Test viral patterns
+    viral = get_viral_manager()
+    print(f"\nSample title pattern: {viral.get_random_title_pattern()}")
+    print(f"Sample hook: {viral.get_random_hook_pattern()}")
+

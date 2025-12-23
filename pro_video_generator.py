@@ -1,16 +1,20 @@
 ﻿#!/usr/bin/env python3
 """
-ViralShorts Factory - PROFESSIONAL Video Generator v7.1
-========================================================
+ViralShorts Factory - PROFESSIONAL Video Generator v8.0
+=========================================================
 
 100% AI-DRIVEN - NO HARDCODING!
-ENFORCED VARIETY - Every video in a batch MUST be different!
+ENFORCED VARIETY - Across ALL runs, not just single batch!
+VIRAL PATTERNS - Learned from successful channels!
+OPTIMAL LENGTH - 15-25 seconds (proven sweet spot)!
 
-Core Philosophy:
-- Master Prompt -> AI -> Answer -> Evaluation -> AI -> Refined Answer
-- AI decides: video type, phrase count, content length, music mood, voice style
-- VARIETY ENFORCED: Track generated topics/voices/music to prevent repetition
-- Strategic Selection: Score all videos and pick BEST for YouTube
+v8.0 Changes:
+- Persistent variety tracking across runs (fixes repetition)
+- Persistent upload tracking (fixes Dailymotion rate limits)
+- Shorter videos (15-25s instead of 30-50s)
+- Stronger hooks with proven viral patterns
+- Engagement baits at end of every video
+- Analytics feedback that persists!
 """
 
 import os
@@ -41,6 +45,25 @@ if not hasattr(Image, 'ANTIALIAS'):
     Image.ANTIALIAS = Image.Resampling.LANCZOS
 
 import edge_tts
+
+# v8.0: Import persistent state managers for cross-run tracking
+try:
+    from persistent_state import (
+        get_upload_manager, get_variety_manager, 
+        get_analytics_manager, get_viral_manager
+    )
+    PERSISTENT_STATE_AVAILABLE = True
+except ImportError:
+    PERSISTENT_STATE_AVAILABLE = False
+    safe_print = lambda msg: print(msg) if msg else None
+
+# v8.0: Import viral patterns for better hooks
+try:
+    from viral_channel_analyzer import get_viral_prompt_boost
+    VIRAL_PATTERNS_AVAILABLE = True
+except ImportError:
+    VIRAL_PATTERNS_AVAILABLE = False
+    get_viral_prompt_boost = lambda: ""
 
 # Constants (only technical, not content!)
 VIDEO_WIDTH = 1080
@@ -319,6 +342,8 @@ class MasterAI:
     def stage1_decide_video_concept(self, hint: str = None, batch_tracker: BatchTracker = None) -> Dict:
         """
         AI decides EVERYTHING about the video concept.
+        v8.0: Uses PERSISTENT variety tracking across all runs!
+        
         PRIMARY: Real-time AI generation (best quality, freshest trends)
         FALLBACK: Pre-generated concepts (only if AI fails due to quota)
         """
@@ -328,12 +353,23 @@ class MasterAI:
         # Get AI-suggested trending categories (dynamic, not hardcoded!)
         trending_categories = get_ai_trending_categories(self.groq_key)
         
-        # Build exclusion list from batch tracker
+        # v8.0: Use PERSISTENT variety manager (survives across workflow runs!)
         exclude_categories = []
         exclude_topics = []
+        
+        # First, check persistent state (tracks across ALL runs)
+        if PERSISTENT_STATE_AVAILABLE:
+            variety = get_variety_manager()
+            exclude_categories = variety.get_exclusions('categories', limit=8)  # Last 8 categories
+            exclude_topics = variety.get_exclusions('topics', limit=15)  # Last 15 topics
+            safe_print(f"   [VARIETY] Excluding {len(exclude_categories)} recent categories")
+        
+        # Also use batch tracker for within-batch variety
         if batch_tracker:
-            exclude_categories = batch_tracker.used_categories[-5:]  # Last 5 used
-            exclude_topics = batch_tracker.used_topics[-10:]  # Last 10 topics
+            exclude_categories.extend(batch_tracker.used_categories[-3:])
+            exclude_topics.extend(batch_tracker.used_topics[-5:])
+            exclude_categories = list(set(exclude_categories))  # Dedupe
+            exclude_topics = list(set(exclude_topics))
         
         available_categories = [c for c in trending_categories if c not in exclude_categories]
         if not available_categories:
@@ -351,6 +387,9 @@ class MasterAI:
         # Build dynamic options from AI-driven lists
         music_options = ", ".join(ALL_MUSIC_MOODS)
         
+        # v8.0: Get viral patterns to inject into prompt
+        viral_boost = get_viral_prompt_boost() if VIRAL_PATTERNS_AVAILABLE else ""
+        
         prompt = f"""You are a VIRAL CONTENT STRATEGIST for short-form video (YouTube Shorts, TikTok).
 Your job is to decide what video to create that will get MAXIMUM views while delivering REAL value.
 
@@ -362,6 +401,8 @@ DATE: {time.strftime('%B %d, %Y, %A')}
 === AVAILABLE CATEGORIES (pick ONE from this list ONLY) ===
 {available_categories}
 
+{viral_boost}
+
 === YOUR DECISION TASKS ===
 
 1. **VIDEO CATEGORY**: Pick from the AVAILABLE list above (NOT the excluded ones!)
@@ -369,9 +410,11 @@ DATE: {time.strftime('%B %d, %Y, %A')}
 2. **SPECIFIC TOPIC**: Within that category, what specific topic?
    - Must be: Surprising, valuable, shareable, globally relevant
    - MUST BE UNIQUE - no generic topics!
+   - Use patterns from VIRAL PATTERNS section above!
 
-3. **CONTENT LENGTH**: How many phrases/sections? (4-8)
-   - Match length to content complexity
+3. **CONTENT LENGTH**: How many phrases/sections?
+   - MUST be 3-5 phrases (15-25 second video is OPTIMAL!)
+   - Fewer phrases = tighter content = better retention
 
 4. **VOICE STYLE**: What voice/energy for the narration?
    Options: energetic, calm, mysterious, authoritative, friendly, dramatic
@@ -379,18 +422,20 @@ DATE: {time.strftime('%B %d, %Y, %A')}
 5. **MUSIC MOOD**: What background music mood? (Match to content emotion!)
    Options: {music_options}
 
-6. **TARGET DURATION**: How long should the video be?
-   Options: 15-20s (quick fact), 25-35s (explained fact), 40-50s (mini-tutorial)
+6. **TARGET DURATION**: CRITICAL - Must be 15-25 seconds!
+   - 15-20s: Quick fact (3-4 phrases) - BEST for virality!
+   - 20-25s: Explained fact (4-5 phrases) - Good balance
+   - NEVER over 30 seconds - viewers drop off!
 
 === OUTPUT JSON ===
 {{
     "category": "MUST be from available list",
     "specific_topic": "the specific topic (5-10 words) - BE CREATIVE AND UNIQUE",
     "why_this_topic": "why this will be viral and valuable",
-    "phrase_count": 5,
+    "phrase_count": 4,
     "voice_style": "energetic/calm/mysterious/etc",
     "music_mood": "upbeat/dramatic/mysterious/etc",
-    "target_duration_seconds": 30,
+    "target_duration_seconds": 20,
     "global_relevance": "why this works worldwide"
 }}
 
@@ -405,10 +450,22 @@ OUTPUT JSON ONLY. Be creative and strategic - NO REPETITION!"""
             
             # Force variety if AI ignored exclusions
             if category in exclude_categories and available_categories:
-                result['category'] = random.choice(available_categories)
+                # v8.0: Use weighted selection for better variety
+                if PERSISTENT_STATE_AVAILABLE:
+                    variety = get_variety_manager()
+                    result['category'] = variety.pick_category_weighted(available_categories)
+                else:
+                    result['category'] = random.choice(available_categories)
                 safe_print(f"   [VARIETY] Forced category change: {category} -> {result['category']}")
             
-            # Track what we're using
+            # v8.0: Record to PERSISTENT state (survives across runs!)
+            if PERSISTENT_STATE_AVAILABLE:
+                variety = get_variety_manager()
+                variety.record_usage('categories', result.get('category', ''))
+                variety.record_usage('topics', result.get('specific_topic', ''))
+                safe_print(f"   [PERSIST] Recorded to variety state")
+            
+            # Also track in batch tracker for within-batch variety
             if batch_tracker:
                 batch_tracker.used_categories.append(result.get('category', ''))
                 batch_tracker.used_topics.append(result.get('specific_topic', ''))
@@ -501,67 +558,74 @@ OUTPUT JSON ONLY. Be creative and strategic - NO REPETITION!"""
     # STAGE 2: AI Creates the Content Based on Its Own Decisions
     # ========================================================================
     def stage2_create_content(self, concept: Dict) -> Dict:
-        """AI creates the actual content based on the concept it decided."""
+        """AI creates the actual content based on the concept it decided.
+        v8.0: Shorter content (3-5 phrases), stronger hooks, engagement baits.
+        """
         safe_print("\n[STAGE 2] AI creating content...")
         
-        phrase_count = concept.get('phrase_count', 5)
+        # v8.0: Cap phrase count for optimal length (15-25 seconds)
+        phrase_count = min(concept.get('phrase_count', 4), 5)  # Max 5 phrases!
+        target_duration = min(concept.get('target_duration_seconds', 20), 25)  # Max 25s!
         
-        prompt = f"""You are a VIRAL CONTENT CREATOR. Create the actual content for this video.
+        # v8.0: Get viral hook patterns
+        viral_boost = get_viral_prompt_boost() if VIRAL_PATTERNS_AVAILABLE else ""
+        
+        prompt = f"""You are a VIRAL CONTENT CREATOR. Create SCROLL-STOPPING content for this video.
 
-=== VIDEO CONCEPT (from Stage 1) ===
+=== VIDEO CONCEPT ===
 Category: {concept.get('category', 'educational')}
 Topic: {concept.get('specific_topic', 'interesting fact')}
 Why Viral: {concept.get('why_this_topic', 'valuable content')}
-Target Duration: ~{concept.get('target_duration_seconds', 30)} seconds
-Phrase Count: {phrase_count} phrases
+Target Duration: {target_duration} seconds (CRITICAL - keep it SHORT!)
+Phrase Count: {phrase_count} phrases ONLY
 
-=== CONTENT CREATION RULES ===
+{viral_boost}
 
-1. **VALUE DELIVERY**: Every phrase must add real information.
-   - If you introduce a PROBLEM, you MUST provide a SPECIFIC SOLUTION
-   - NO vague advice like "be better" - give SPECIFIC steps/numbers
+=== v8.0 CONTENT RULES ===
+
+1. **HOOK IS EVERYTHING**: First phrase = 90% of success!
+   - Pattern interrupts: "STOP!", "Wait...", "This will shock you"
+   - Questions: "Did you know...?", "Why does everyone...?"
+   - Challenges: "99% of people get this wrong"
+   - Controversy: "What they don't want you to know..."
+
+2. **ULTRA-CONCISE**: This is NOT a long video!
+   - Each phrase: 8-15 words MAX (shorter = better)
+   - Total word count: ~60 words for whole video
+   - Cut fluff - every word must earn its place
    
-2. **COMPREHENSIVENESS**: The content must be COMPLETE.
-   - Viewer should feel they learned something ACTIONABLE
-   - Include: specific techniques, numbers, timeframes, methods
+3. **SPECIFIC > VAGUE**: Numbers and specifics win
+   - Bad: "save money" → Good: "save $500 in 30 days"
+   - Bad: "be productive" → Good: "finish 3x more tasks"
    
-3. **GLOBAL RELEVANCE**: Content must apply WORLDWIDE.
-   - NO country-specific references
-   - Universal human experiences and facts
-   
-4. **FORMAT**:
-   - Use DIGITS for numbers (500$, 92%, 3x)
-   - Each phrase: 10-20 words for readability
-   - Build narrative: Hook -> Context -> Solution -> Payoff
+4. **ENGAGEMENT BAIT**: Last phrase MUST drive action
+   - Questions that FORCE comments: "A or B?", "Would you try this?"
+   - Predictions: "Comment your guess before I reveal!"
+   - Save hooks: "Save this before it's gone!"
 
 === CREATE EXACTLY {phrase_count} PHRASES ===
-Structure:
-1. HOOK (pattern interrupt, curiosity - make them STOP scrolling)
-2-{phrase_count-1}. BUILD (problem, context, solution parts)
-{phrase_count}. PAYOFF + ENGAGEMENT BAIT (transformation + question for comments)
-
-ENGAGEMENT RULE (v7.16): 
-The LAST phrase MUST end with a question or call-to-comment like:
-- "What do you think?" or "Comment below!"
-- "Would you try this?" or "Which one would you choose?"
-- "Follow for more!" or "Save this for later!"
+1. HOOK (1-3 seconds) - Pattern interrupt, make them STOP scrolling!
+2-{phrase_count-1}. CONTENT (8-12 seconds) - Fast, punchy, valuable
+{phrase_count}. PAYOFF + BAIT (3-5 seconds) - Answer + force engagement
 
 === OUTPUT JSON ===
 {{
     "phrases": [
-        "Your attention-grabbing hook here",
-        "The problem or context explained",
-        "More detail or the solution",
-        "The payoff PLUS engagement question like: Would you try this? Comment below!"
+        "STOP scrolling - this changes everything",
+        "The problem explained in one punchy sentence",
+        "The solution with a specific number or result",
+        "The payoff PLUS: Would you try this? Comment YES or NO!"
     ],
-    "specific_value": "What SPECIFIC action can viewer take after watching?",
-    "problem_solved": "What problem did we solve?",
-    "solution_given": "What specific solution did we provide?",
-    "engagement_hook": "The question/CTA in the final phrase"
+    "specific_value": "What SPECIFIC result does viewer get?",
+    "hook_technique": "Which viral hook pattern was used?",
+    "engagement_bait": "The exact question/CTA at the end"
 }}
 
-CRITICAL: Do NOT include "Phrase 1:", "Phrase 2:" etc. in the phrases - just the text itself!
-OUTPUT JSON ONLY. Make every phrase count!"""
+CRITICAL: 
+- NO "Phrase 1:", "Phrase 2:" prefixes
+- ONLY {phrase_count} phrases - no more!
+- UNDER 15 words per phrase
+OUTPUT JSON ONLY."""
 
         response = self.call_ai(prompt, 1200, temperature=0.85)
         result = self.parse_json(response)
@@ -1558,8 +1622,10 @@ async def generate_pro_video(hint: str = None, batch_tracker: BatchTracker = Non
     run_id = random.randint(10000, 99999)
     
     safe_print("=" * 70)
-    safe_print(f"   VIRALSHORTS FACTORY v7.17 - MAXIMUM THROUGHPUT")
+    safe_print(f"   VIRALSHORTS FACTORY v8.0 - OPTIMIZED VIRALITY")
     safe_print(f"   Run: #{run_id}")
+    safe_print(f"   Video Length: 15-25 seconds (optimal)")
+    safe_print(f"   Variety: Persistent across runs")
     safe_print("=" * 70)
     
     # v7.17: Comprehensive initialization with fallback
@@ -1672,7 +1738,7 @@ async def generate_pro_video(hint: str = None, batch_tracker: BatchTracker = Non
         if batch_tracker:
             batch_tracker.add_video(output_path, score, metadata or {})
         
-        # === ANALYTICS FEEDBACK INTEGRATION (v7.11) ===
+        # === ANALYTICS FEEDBACK INTEGRATION (v8.0 Enhanced) ===
         try:
             from analytics_feedback import FeedbackLoopController
             feedback = FeedbackLoopController()
@@ -1699,13 +1765,32 @@ async def generate_pro_video(hint: str = None, batch_tracker: BatchTracker = Non
                     'total_word_count': sum(len(p.split()) for p in content.get('phrases', [])),
                     'ai_title_generated': True,
                     'ai_hashtags_generated': True,
-                    'has_vignette': True,  # v7.5 optimized
-                    'trend_source': 'ai_generated',  # v7.x AI-driven
+                    'has_vignette': True,
+                    'trend_source': 'ai_generated',
                 }
             )
             safe_print("   [ANALYTICS] Video recorded for learning")
         except Exception as e:
             pass  # Non-critical, don't break video generation
+        
+        # v8.0: Also record to persistent analytics
+        if PERSISTENT_STATE_AVAILABLE:
+            try:
+                analytics = get_analytics_manager()
+                analytics.record_video({
+                    'video_id': str(run_id),
+                    'category': concept.get('category', ''),
+                    'topic': concept.get('specific_topic', ''),
+                    'title': metadata.get('title', ''),
+                    'hook': content.get('phrases', [''])[0] if content.get('phrases') else '',
+                    'voice': voice_config.get('voice', ''),
+                    'music_mood': concept.get('music_mood', ''),
+                    'duration': concept.get('target_duration_seconds', 20),
+                    'score': score,
+                })
+                safe_print("   [PERSIST] Video recorded to persistent analytics")
+            except Exception as e:
+                pass
         
         safe_print("\n" + "=" * 70)
         safe_print("   VIDEO GENERATED!")
@@ -1725,7 +1810,9 @@ async def generate_pro_video(hint: str = None, batch_tracker: BatchTracker = Non
 
 
 async def upload_video(video_path: str, metadata: Dict, youtube: bool = True, dailymotion: bool = True) -> Dict:
-    """Upload to platforms."""
+    """Upload to platforms.
+    v8.0: Uses persistent state to respect Dailymotion rate limits across runs!
+    """
     results = {"youtube": None, "dailymotion": None}
     
     title = metadata.get('title', 'Amazing Fact')[:100]
@@ -1743,48 +1830,70 @@ async def upload_video(video_path: str, metadata: Dict, youtube: bool = True, da
     # Get video ID from path for analytics tracking
     video_id = Path(video_path).stem.split('_')[-1] if video_path else None
     
-    if youtube:
-        try:
-            from youtube_uploader import upload_video as yt_upload
-            result = yt_upload(video_path, title=title, description=description, tags=tags)
-            if result:
-                results["youtube"] = result
-                safe_print(f"[OK] YouTube: {result}")
-                
-                # Record upload in analytics (v7.11)
-                try:
-                    from analytics_feedback import FeedbackLoopController
-                    feedback = FeedbackLoopController()
-                    yt_id = result.get('id') if isinstance(result, dict) else str(result)
-                    feedback.record_upload(video_id, 'youtube', yt_id)
-                except:
-                    pass
-        except Exception as e:
-            safe_print(f"[!] YouTube error: {e}")
+    # v8.0: Check upload state before uploading
+    upload_manager = None
+    if PERSISTENT_STATE_AVAILABLE:
+        upload_manager = get_upload_manager()
     
-    if dailymotion:
-        try:
-            from dailymotion_uploader import DailymotionUploader
-            dm = DailymotionUploader()
-            if dm.is_configured:
-                result = dm.upload_video(
-                    video_path, title=title, description=description,
-                    tags=tags, channel='lifestyle', ai_generated=False
-                )
+    if youtube:
+        # v8.0: Check if we can upload (daily limit)
+        if upload_manager and not upload_manager.can_upload_youtube():
+            safe_print("[SKIP] YouTube daily limit reached (6/day)")
+        else:
+            try:
+                from youtube_uploader import upload_video as yt_upload
+                result = yt_upload(video_path, title=title, description=description, tags=tags)
                 if result:
-                    results["dailymotion"] = result
-                    safe_print(f"[OK] Dailymotion: {result}")
+                    results["youtube"] = result
+                    safe_print(f"[OK] YouTube: {result}")
+                    
+                    # v8.0: Record upload for rate limiting
+                    if upload_manager:
+                        upload_manager.record_upload('youtube', str(result))
                     
                     # Record upload in analytics (v7.11)
                     try:
                         from analytics_feedback import FeedbackLoopController
                         feedback = FeedbackLoopController()
-                        dm_id = result.get('id') if isinstance(result, dict) else str(result)
-                        feedback.record_upload(video_id, 'dailymotion', dm_id)
+                        yt_id = result.get('id') if isinstance(result, dict) else str(result)
+                        feedback.record_upload(video_id, 'youtube', yt_id)
                     except:
                         pass
-        except Exception as e:
-            safe_print(f"[!] Dailymotion error: {e}")
+            except Exception as e:
+                safe_print(f"[!] YouTube error: {e}")
+    
+    if dailymotion:
+        # v8.0: Check if we can upload (4 per hour limit)
+        if upload_manager and not upload_manager.can_upload_dailymotion():
+            wait_time = upload_manager.get_wait_time_dailymotion()
+            safe_print(f"[SKIP] Dailymotion rate limit - wait {wait_time//60}m {wait_time%60}s")
+        else:
+            try:
+                from dailymotion_uploader import DailymotionUploader
+                dm = DailymotionUploader()
+                if dm.is_configured:
+                    result = dm.upload_video(
+                        video_path, title=title, description=description,
+                        tags=tags, channel='lifestyle', ai_generated=False
+                    )
+                    if result:
+                        results["dailymotion"] = result
+                        safe_print(f"[OK] Dailymotion: {result}")
+                        
+                        # v8.0: Record upload for rate limiting
+                        if upload_manager:
+                            upload_manager.record_upload('dailymotion', str(result))
+                        
+                        # Record upload in analytics (v7.11)
+                        try:
+                            from analytics_feedback import FeedbackLoopController
+                            feedback = FeedbackLoopController()
+                            dm_id = result.get('id') if isinstance(result, dict) else str(result)
+                            feedback.record_upload(video_id, 'dailymotion', dm_id)
+                        except:
+                            pass
+            except Exception as e:
+                safe_print(f"[!] Dailymotion error: {e}")
     
     return results
 

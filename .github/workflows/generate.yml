@@ -101,7 +101,18 @@ jobs:
       - name: Create asset directories
         run: |
           mkdir -p assets/backgrounds assets/broll assets/music assets/sfx assets/fonts
-          mkdir -p output cache
+          mkdir -p output cache data/persistent
+      
+      # v8.0: Download persistent state from previous runs
+      - name: Restore persistent state
+        uses: dawidd6/action-download-artifact@v3
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          workflow: generate.yml
+          name: persistent-state
+          path: data/persistent/
+          if_no_artifact_found: ignore
+        continue-on-error: true
 
       - name: Pre-fetch some B-roll (optional cache)
         run: python fetch_broll.py || true
@@ -110,14 +121,14 @@ jobs:
         continue-on-error: true
 
       # ====================================================================
-      # v7.17: MAXIMUM THROUGHPUT - 6 YouTube + 24 Dailymotion per day
-      # - Generate 4 videos per batch with ENFORCED VARIETY
-      # - AI scores each video (1-10)
-      # - BEST video goes to YouTube (6 per day = MAXIMUM!)
-      # - All 4 videos go to Dailymotion (24 per day)
-      # - Runs 6 times per day (every 4 hours)
+      # v8.0: OPTIMIZED VIRALITY
+      # - Shorter videos (15-25s) - proven optimal length
+      # - Viral hooks from successful channel analysis
+      # - Persistent variety tracking (survives across runs!)
+      # - Smart rate limiting (no more Dailymotion 403s)
+      # - YouTube: 6/day (max) | Dailymotion: 24/day (rate-aware)
       # ====================================================================
-      - name: Generate Videos (v7.17 - Maximum Throughput)
+      - name: Generate Videos (v8.0 - Optimized Virality)
         run: |
           # Set defaults for scheduled runs
           BATCH="${{ github.event.inputs.batch_size }}"
@@ -126,12 +137,13 @@ jobs:
           TEST_ONLY="${TEST_ONLY:-false}"
           
           echo "=============================================="
-          echo "   VIRALSHORTS FACTORY v7.17"
-          echo "   MAXIMUM THROUGHPUT CONFIGURATION"
+          echo "   VIRALSHORTS FACTORY v8.0"
+          echo "   OPTIMIZED FOR VIRALITY"
           echo "   Batch: $BATCH videos"
-          echo "   YouTube: BEST video (6/day MAXIMUM)"
-          echo "   Dailymotion: All videos (24/day)"
-          echo "   Schedule: 6 runs/day (every 4 hours)"
+          echo "   Video Length: 15-25 seconds (optimal!)"
+          echo "   YouTube: BEST video (6/day MAX)"
+          echo "   Dailymotion: Rate-limit aware (4/hour)"
+          echo "   Variety: Persistent across all runs"
           echo "=============================================="
           
           if [ "$TEST_ONLY" = "true" ]; then
@@ -224,28 +236,37 @@ jobs:
           YOUTUBE_REFRESH_TOKEN: ${{ secrets.YOUTUBE_REFRESH_TOKEN }}
           GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
 
+      # v8.0: Save persistent state for next run
+      - name: Save persistent state
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: persistent-state
+          path: data/persistent/
+          retention-days: 30
+          if-no-files-found: ignore
+          overwrite: true
+
       - name: Summary
         run: |
-          echo "## ViralShorts Factory v7.17 - MAXIMUM THROUGHPUT" >> $GITHUB_STEP_SUMMARY
+          echo "## ViralShorts Factory v8.0 - OPTIMIZED VIRALITY" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "**Time:** $(date -u)" >> $GITHUB_STEP_SUMMARY
           echo "**Batch Size:** ${{ github.event.inputs.batch_size || '4' }}" >> $GITHUB_STEP_SUMMARY
           echo "**Test Mode:** ${{ github.event.inputs.test_only || 'false' }}" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "### v7.17 MAXIMUM Configuration" >> $GITHUB_STEP_SUMMARY
-          echo "- **24 videos/day** (4 per batch x 6 batches)" >> $GITHUB_STEP_SUMMARY
-          echo "- **YouTube: 6 uploads/day (MAXIMUM!)**" >> $GITHUB_STEP_SUMMARY
-          echo "- **Dailymotion: 24 uploads/day**" >> $GITHUB_STEP_SUMMARY
-          echo "- Uses 93.6% of Groq quota (near maximum)" >> $GITHUB_STEP_SUMMARY
-          echo "- Schedule: Every 4 hours (6 runs/day)" >> $GITHUB_STEP_SUMMARY
+          echo "### v8.0 UPGRADES" >> $GITHUB_STEP_SUMMARY
+          echo "- **Persistent State**: Variety & upload tracking survives across runs" >> $GITHUB_STEP_SUMMARY
+          echo "- **Shorter Videos**: 15-25 seconds (proven optimal)" >> $GITHUB_STEP_SUMMARY
+          echo "- **Viral Hooks**: Learned patterns from successful channels" >> $GITHUB_STEP_SUMMARY
+          echo "- **Smart Rate Limiting**: No more Dailymotion 403 errors" >> $GITHUB_STEP_SUMMARY
+          echo "- **Better Variety**: Enforced across ALL runs, not just batches" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "### Quality Features" >> $GITHUB_STEP_SUMMARY
-          echo "- Ken Burns zoom on B-roll" >> $GITHUB_STEP_SUMMARY
-          echo "- Crossfade transitions" >> $GITHUB_STEP_SUMMARY
-          echo "- Comment bait for engagement" >> $GITHUB_STEP_SUMMARY
-          echo "- Subscribe CTA overlay" >> $GITHUB_STEP_SUMMARY
-          echo "- 6 animation types" >> $GITHUB_STEP_SUMMARY
+          echo "### Daily Output" >> $GITHUB_STEP_SUMMARY
+          echo "- **YouTube: 6 uploads/day (MAXIMUM!)**" >> $GITHUB_STEP_SUMMARY
+          echo "- **Dailymotion: 24 uploads/day (rate-limit aware)**" >> $GITHUB_STEP_SUMMARY
+          echo "- Schedule: Every 4 hours (6 runs/day)" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### Channels" >> $GITHUB_STEP_SUMMARY
           echo "- YouTube: https://www.youtube.com/channel/UC4Y6O0ubwl0_ZQsLq2EteTQ" >> $GITHUB_STEP_SUMMARY
-          echo "- Dailymotion: https://www.dailymotion.com/asaadbalum2" >> $GITHUB_STEP_SUMMARY
+          echo "- Dailymotion: https://www.dailymotion.com/ViralShorts-Factory" >> $GITHUB_STEP_SUMMARY

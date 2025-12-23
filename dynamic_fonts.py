@@ -269,3 +269,4 @@ if __name__ == "__main__":
         exists = os.path.exists(font_path) if font_path else False
         print(f"  {style}: {font_path} (exists: {exists})")
 
+

@@ -232,3 +232,4 @@ if __name__ == "__main__":
         result = generate_thumbnail(topic, "Psychology")
         print(f"Result: {result}")
 
+
