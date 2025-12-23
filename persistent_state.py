@@ -360,55 +360,28 @@ class ViralPatternsManager:
         try:
             if VIRAL_PATTERNS_FILE.exists():
                 with open(VIRAL_PATTERNS_FILE, 'r') as f:
-                    return json.load(f)
+                    data = json.load(f)
+                    # Return if we have valid AI-generated patterns
+                    if data.get("title_patterns") and len(data.get("title_patterns", [])) > 0:
+                        return data
         except Exception as e:
             safe_print(f"[!] Error loading viral patterns: {e}")
         
-        # Default patterns based on research
+        # v8.1: Empty default - patterns will be AI-generated on first use
+        # NO HARDCODED PATTERNS - see viral_channel_analyzer._generate_viral_patterns_ai()
         return {
-            "title_patterns": [
-                "{number}% of people get this WRONG",
-                "This {thing} will change your {noun}",
-                "Why {experts} don't want you to know this",
-                "I tried {thing} for {duration} - here's what happened",
-                "The {adjective} truth about {topic}",
-                "Stop doing {bad_thing} - do THIS instead",
-                "{number} second trick that {benefit}",
-                "You've been {action} WRONG your whole life"
-            ],
-            "hook_patterns": [
-                "STOP scrolling! You need to see this",
-                "This will blow your mind in {seconds} seconds",
-                "What I'm about to tell you changed everything",
-                "The thing no one is talking about...",
-                "{Number}% of people fail this simple test",
-                "I can't believe this actually works",
-                "Before you scroll, watch this",
-                "This is the video I wish I saw years ago"
-            ],
-            "engagement_baits": [
-                "Comment '1' if you knew this!",
-                "Would you try this? Comment below!",
-                "Type your answer before the reveal!",
-                "Follow for part 2!",
-                "Save this for later!",
-                "Share with someone who needs this!",
-                "Which one would YOU choose? Comment!"
-            ],
+            "title_patterns": [],  # AI will populate
+            "hook_patterns": [],   # AI will populate
+            "engagement_baits": [], # AI will populate
             "optimal_lengths": {
                 "hook": "7-12 words",
                 "total_video": "15-25 seconds",
-                "phrases": 3-5,
+                "phrases": "3-5",
                 "cta": "5-10 words"
             },
-            "proven_categories": [
-                "shocking_facts",
-                "would_you_rather", 
-                "money_tricks",
-                "psychology_hacks",
-                "life_shortcuts"
-            ],
-            "last_updated": None
+            "proven_categories": [],  # AI will learn from performance
+            "last_updated": None,
+            "ai_generated": False  # Will be True after AI populates
         }
     
     def _save_patterns(self):

@@ -50,60 +50,20 @@ class ViralChannelAnalyzer:
     """
     Analyzes successful Shorts channels to learn winning patterns.
     
+    v8.1: 100% AI-DRIVEN - No hardcoded patterns!
+    
     Uses:
-    - YouTube Data API for channel/video data
-    - AI to extract patterns and insights
+    - AI to generate and evolve viral patterns
+    - Optional: YouTube Data API for channel analysis (only if API key provided)
+    - NO HARDCODED PATTERNS - AI generates everything!
     """
     
-    # Known successful AI-generated Shorts channels to study
-    # These are "graduated" channels that hit monetization
-    REFERENCE_CHANNELS = [
-        # Facts/Trivia channels
-        "UCQb8fMCz9sOMcR9GfqLJ3kQ",  # Example: facts channel
-        "UC2JhO3f8dJ3xSY1dGqr0AZw",  # Example: psychology facts
-        # Add more known successful channels here
-    ]
+    # NO HARDCODED CHANNELS - AI will suggest based on niche
+    REFERENCE_CHANNELS = []  # Empty - AI-populated
     
-    # Patterns we've learned from manual research
-    PROVEN_PATTERNS = {
-        "title_formulas": [
-            "{Number}% of people can't do this",
-            "This {thing} will blow your mind",
-            "Watch till the end for the reveal",
-            "Only {type} people understand this",
-            "What happens if you {action}?",
-            "The truth about {topic} no one tells you",
-            "I tested {claim} and here's what happened",
-            "You've been doing {action} wrong",
-            "Why {thing} is {adjective}er than you think",
-            "This {number} second trick changes everything"
-        ],
-        "hook_techniques": [
-            "Pattern interrupt (STOP, WAIT, HOLD UP)",
-            "Question opener (Did you know...?)",
-            "Controversy hook (Everyone thinks X but actually Y)",
-            "Curiosity gap (What I'm about to show you...)",
-            "Challenge hook (Try this and see if you can...)",
-            "Urgency hook (Before this gets taken down...)",
-            "Social proof (Millions of people don't know this)",
-            "Personal story (I just discovered something...)"
-        ],
-        "engagement_tactics": [
-            "End with question forcing comment",
-            "Ask for prediction before reveal",
-            "Create poll-like choices (A or B?)",
-            "Promise part 2 for followers",
-            "Time-limited exclusive content",
-            "Save for later CTA",
-            "Share with someone who needs this"
-        ],
-        "optimal_metrics": {
-            "video_length_seconds": (15, 25),  # Sweet spot
-            "hook_length_seconds": (1, 3),      # First 1-3 seconds critical
-            "phrases_count": (3, 5),            # Not too many
-            "words_per_phrase": (8, 15)         # Short, punchy
-        }
-    }
+    # NO HARDCODED PATTERNS - AI generates these!
+    # This is just the STRUCTURE, not content
+    PROVEN_PATTERNS = None  # Will be AI-generated
     
     def __init__(self):
         self.youtube_api_key = os.environ.get("YOUTUBE_API_KEY")
@@ -114,6 +74,137 @@ class ViralChannelAnalyzer:
             self.viral_manager = get_viral_manager()
         else:
             self.viral_manager = None
+        
+        # v8.1: Generate patterns via AI (not hardcoded!)
+        self._ensure_ai_patterns()
+    
+    def _ensure_ai_patterns(self):
+        """
+        Ensure we have AI-generated patterns.
+        Generates fresh patterns if none exist or they're stale.
+        """
+        # Check if we already have patterns from viral manager
+        if self.viral_manager and self.viral_manager.patterns.get("title_patterns"):
+            patterns_age = self.viral_manager.patterns.get("last_updated")
+            if patterns_age:
+                # Use existing if less than 7 days old
+                try:
+                    from datetime import datetime, timedelta
+                    last_update = datetime.fromisoformat(patterns_age)
+                    if datetime.now() - last_update < timedelta(days=7):
+                        self.PROVEN_PATTERNS = self.viral_manager.patterns
+                        return
+                except:
+                    pass
+        
+        # Generate fresh patterns via AI
+        self.PROVEN_PATTERNS = self._generate_viral_patterns_ai()
+        
+        # Save to viral manager for persistence
+        if self.viral_manager:
+            self.viral_manager.update_patterns_from_analysis(self.PROVEN_PATTERNS)
+    
+    def _generate_viral_patterns_ai(self) -> Dict:
+        """
+        Use AI to generate viral patterns - NO HARDCODING!
+        
+        This is the core innovation: AI decides what makes content viral,
+        not hardcoded human assumptions.
+        """
+        if not self.groq_key:
+            # Minimal fallback only if no AI available
+            return self._minimal_fallback_patterns()
+        
+        safe_print("[AI] Generating viral patterns...")
+        
+        prompt = """You are an expert in viral short-form video content (YouTube Shorts, TikTok, Reels).
+
+Based on your knowledge of what makes content go viral in 2024-2025, generate:
+
+1. **TITLE FORMULAS** (10 patterns): Proven title structures that get clicks
+   - Use {placeholders} for variable parts
+   - Focus on curiosity, numbers, challenges, revelations
+
+2. **HOOK TECHNIQUES** (8 patterns): First 1-3 seconds that STOP the scroll
+   - Pattern interrupts, questions, controversy, curiosity gaps
+
+3. **ENGAGEMENT BAITS** (7 patterns): End-of-video CTAs that drive comments
+   - Questions, challenges, predictions, saves
+
+4. **OPTIMAL METRICS**: What works best currently
+   - video_length, hook_length, phrase_count, words_per_phrase
+
+Return as JSON:
+{
+    "title_formulas": ["pattern with {placeholder}", ...],
+    "hook_techniques": ["technique description", ...],
+    "engagement_tactics": ["tactic description", ...],
+    "optimal_metrics": {
+        "video_length_seconds": [min, max],
+        "hook_length_seconds": [min, max],
+        "phrases_count": [min, max],
+        "words_per_phrase": [min, max]
+    }
+}
+
+Be specific, creative, and based on CURRENT viral trends. JSON ONLY."""
+
+        try:
+            response = requests.post(
+                "https://api.groq.com/openai/v1/chat/completions",
+                headers={
+                    "Authorization": f"Bearer {self.groq_key}",
+                    "Content-Type": "application/json"
+                },
+                json={
+                    "model": "llama-3.1-8b-instant",  # Fast, cheap model
+                    "messages": [{"role": "user", "content": prompt}],
+                    "temperature": 0.8,
+                    "max_tokens": 800
+                },
+                timeout=15
+            )
+            
+            if response.status_code == 200:
+                content = response.json()["choices"][0]["message"]["content"]
+                match = re.search(r'\{[\s\S]*\}', content)
+                if match:
+                    patterns = json.loads(match.group())
+                    safe_print(f"[AI] Generated {len(patterns.get('title_formulas', []))} title patterns")
+                    return patterns
+        except Exception as e:
+            safe_print(f"[!] AI pattern generation failed: {e}")
+        
+        return self._minimal_fallback_patterns()
+    
+    def _minimal_fallback_patterns(self) -> Dict:
+        """
+        Absolute minimal fallback - only used if AI completely fails.
+        These are structure hints, not actual content.
+        """
+        return {
+            "title_formulas": [
+                "{number} {topic} that {result}",
+                "Why {thing} is {adjective}",
+                "The truth about {topic}"
+            ],
+            "hook_techniques": [
+                "Start with a question",
+                "Make a bold claim",
+                "Create curiosity gap"
+            ],
+            "engagement_tactics": [
+                "Ask a question",
+                "Request comments",
+                "Encourage saves"
+            ],
+            "optimal_metrics": {
+                "video_length_seconds": [15, 25],
+                "hook_length_seconds": [1, 3],
+                "phrases_count": [3, 5],
+                "words_per_phrase": [8, 15]
+            }
+        }
     
     def analyze_channel(self, channel_id: str) -> Optional[ChannelInsight]:
         """
@@ -300,57 +391,118 @@ JSON ONLY."""
     
     def get_viral_patterns(self) -> Dict:
         """
-        Get all learned viral patterns (from file + hardcoded research).
+        Get all AI-learned viral patterns.
         
+        v8.1: 100% AI-generated, no hardcoded patterns!
         Returns comprehensive patterns for video generation.
         """
-        patterns = self.PROVEN_PATTERNS.copy()
+        # Ensure patterns are generated (AI does this)
+        if not self.PROVEN_PATTERNS:
+            self._ensure_ai_patterns()
         
-        # Merge with saved patterns from viral manager
-        if self.viral_manager:
+        patterns = self.PROVEN_PATTERNS.copy() if self.PROVEN_PATTERNS else {}
+        
+        # Merge with any saved patterns from viral manager
+        if self.viral_manager and self.viral_manager.patterns:
             saved = self.viral_manager.patterns
-            for key in ["title_patterns", "hook_patterns", "engagement_baits"]:
-                if key in saved:
-                    patterns_key = key.replace("_patterns", "_formulas") if "title" in key else key
-                    if patterns_key not in patterns:
-                        patterns_key = key
-                    existing = patterns.get(patterns_key, [])
+            for key in ["title_patterns", "hook_patterns", "engagement_baits", "title_formulas"]:
+                if key in saved and saved[key]:
+                    target_key = "title_formulas" if "title" in key else key
+                    if target_key not in patterns:
+                        patterns[target_key] = []
                     for item in saved[key]:
-                        if item not in existing:
-                            existing.append(item)
-                    patterns[patterns_key] = existing
+                        if item and item not in patterns[target_key]:
+                            patterns[target_key].append(item)
         
         return patterns
     
     def get_optimized_prompt_additions(self) -> str:
         """
-        Get prompt additions based on viral patterns.
+        Get AI-generated prompt additions for virality.
         
-        Add this to video generation prompts for better virality.
+        v8.1: If no patterns exist yet, generates them via AI first.
         """
         patterns = self.get_viral_patterns()
         
-        sample_titles = random.sample(patterns.get("title_formulas", []), min(3, len(patterns.get("title_formulas", []))))
-        sample_hooks = random.sample(patterns.get("hook_techniques", []), min(2, len(patterns.get("hook_techniques", []))))
+        # Get samples (or empty if none yet)
+        title_formulas = patterns.get("title_formulas", [])
+        hook_techniques = patterns.get("hook_techniques", [])
+        engagement = patterns.get("engagement_tactics", [])
         
-        return f"""
-=== VIRAL PATTERNS (Learned from successful channels) ===
-
-TITLE FORMULAS that get views:
-{chr(10).join(f'- {t}' for t in sample_titles)}
-
-HOOK TECHNIQUES that stop the scroll:
-{chr(10).join(f'- {h}' for h in sample_hooks)}
+        # If no patterns exist, AI will generate inline guidance instead
+        if not title_formulas:
+            return self._generate_inline_viral_guidance()
+        
+        sample_titles = random.sample(title_formulas, min(3, len(title_formulas))) if title_formulas else []
+        sample_hooks = random.sample(hook_techniques, min(2, len(hook_techniques))) if hook_techniques else []
+        sample_engagement = random.sample(engagement, min(2, len(engagement))) if engagement else []
+        
+        result = "\n=== AI-LEARNED VIRAL PATTERNS ===\n"
+        
+        if sample_titles:
+            result += "\nTITLE FORMULAS that get views:\n"
+            result += "\n".join(f"- {t}" for t in sample_titles)
+        
+        if sample_hooks:
+            result += "\n\nHOOK TECHNIQUES that stop the scroll:\n"
+            result += "\n".join(f"- {h}" for h in sample_hooks)
+        
+        result += """
 
 OPTIMAL METRICS:
 - Video length: 15-25 seconds (CRITICAL!)
 - Hook: First 1-3 seconds must grab attention
 - Phrases: 3-5 short phrases (8-15 words each)
 - End with engagement question
-
-ENGAGEMENT BAITS (use one at the end):
-{chr(10).join(f'- {e}' for e in random.sample(patterns.get("engagement_tactics", ["Comment below!"]), 2))}
 """
+        
+        if sample_engagement:
+            result += "\nENGAGEMENT BAITS (use one at the end):\n"
+            result += "\n".join(f"- {e}" for e in sample_engagement)
+        
+        return result
+    
+    def _generate_inline_viral_guidance(self) -> str:
+        """
+        Generate viral guidance inline when no patterns exist.
+        This is a one-time AI call to bootstrap the system.
+        """
+        if not self.groq_key:
+            return """
+=== VIRAL CONTENT GUIDANCE ===
+- Create a strong hook in first 2 seconds
+- Keep total video under 25 seconds
+- End with a question to drive comments
+- Use numbers and specifics in titles
+"""
+        
+        # Quick AI call for guidance
+        prompt = """Give 3 viral title patterns and 2 hook techniques for YouTube Shorts.
+Format as simple bullet points. Be specific and creative. Under 100 words total."""
+        
+        try:
+            response = requests.post(
+                "https://api.groq.com/openai/v1/chat/completions",
+                headers={
+                    "Authorization": f"Bearer {self.groq_key}",
+                    "Content-Type": "application/json"
+                },
+                json={
+                    "model": "llama-3.1-8b-instant",
+                    "messages": [{"role": "user", "content": prompt}],
+                    "temperature": 0.8,
+                    "max_tokens": 150
+                },
+                timeout=10
+            )
+            
+            if response.status_code == 200:
+                content = response.json()["choices"][0]["message"]["content"]
+                return f"\n=== AI VIRAL GUIDANCE ===\n{content}\n"
+        except:
+            pass
+        
+        return ""
     
     def learn_from_our_best(self, our_videos: List[Dict]) -> Dict:
         """
