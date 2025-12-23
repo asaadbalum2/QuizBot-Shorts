@@ -33,10 +33,20 @@ env/
 *.swo
 *~
 
-# Output files (generated videos)
-output/*.mp4
-output/*.avi
-output/*.mov
+# Output files (generated videos) - NEVER commit videos!
+output/
+latest_videos/
+pro_videos/
+review_videos/
+v5_videos/
+v51_videos/
+v6_videos/
+workflow_output/
+*.mp4
+*.avi
+*.mov
+*.mkv
+*.webm
 
 # Temp files
 *.tmp
