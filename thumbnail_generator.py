@@ -45,22 +45,16 @@ COLOR_SCHEMES = {
     "default": {"bg": (30, 30, 30), "text": (255, 255, 0), "accent": (255, 50, 50)},
 }
 
-def get_ai_thumbnail_concept(topic: str, category: str, groq_key: str = None) -> Dict:
+def get_ai_thumbnail_concept(topic: str, category: str, gemini_key: str = None) -> Dict:
     """
-    AI generates the thumbnail concept - headline, color mood, emphasis.
+    AI generates the thumbnail concept using GEMINI (free tokens!).
+    
+    v8.7: Uses Gemini instead of Groq - we have free Gemini quota to spare!
     
     Returns: {headline, color_mood, emphasis_word}
     """
-    if not groq_key:
-        groq_key = os.environ.get("GROQ_API_KEY")
-    
-    if not groq_key:
-        # Fallback to simple shortening
-        return {
-            "headline": shorten_for_thumbnail(topic),
-            "color_mood": "default",
-            "emphasis_word": ""
-        }
+    if not gemini_key:
+        gemini_key = os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY")
     
     prompt = f"""Create a HIGH-CTR YouTube thumbnail concept for this video:
 
@@ -78,42 +72,69 @@ Generate:
    
 3. EMPHASIS_WORD: Which ONE word should be visually emphasized (different color)?
 
-Return JSON:
+Return JSON ONLY:
 {{
     "headline": "SHORT PUNCHY TEXT",
     "color_mood": "emotion_name",
     "emphasis_word": "ONE_WORD"
-}}
+}}"""
 
-JSON ONLY."""
-
-    try:
-        response = requests.post(
-            "https://api.groq.com/openai/v1/chat/completions",
-            headers={
-                "Authorization": f"Bearer {groq_key}",
-                "Content-Type": "application/json"
-            },
-            json={
-                "model": "llama-3.1-8b-instant",
-                "messages": [{"role": "user", "content": prompt}],
-                "temperature": 0.8,
-                "max_tokens": 150
-            },
-            timeout=10
-        )
-        
-        if response.status_code == 200:
-            content = response.json()["choices"][0]["message"]["content"]
-            match = re.search(r'\{[\s\S]*\}', content)
-            if match:
-                result = json.loads(match.group())
-                if result.get("headline"):
-                    return result
-    except Exception as e:
-        print(f"   [!] AI thumbnail concept failed: {e}")
+    # Try Gemini first (free quota!)
+    if gemini_key:
+        try:
+            response = requests.post(
+                f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={gemini_key}",
+                headers={"Content-Type": "application/json"},
+                json={
+                    "contents": [{"parts": [{"text": prompt}]}],
+                    "generationConfig": {"temperature": 0.8, "maxOutputTokens": 200}
+                },
+                timeout=15
+            )
+            
+            if response.status_code == 200:
+                data = response.json()
+                content = data.get("candidates", [{}])[0].get("content", {}).get("parts", [{}])[0].get("text", "")
+                match = re.search(r'\{[\s\S]*\}', content)
+                if match:
+                    result = json.loads(match.group())
+                    if result.get("headline"):
+                        print(f"   [OK] Gemini generated thumbnail concept")
+                        return result
+        except Exception as e:
+            print(f"   [!] Gemini thumbnail failed: {e}")
     
-    # Fallback
+    # Fallback to Groq if Gemini unavailable
+    groq_key = os.environ.get("GROQ_API_KEY")
+    if groq_key:
+        try:
+            response = requests.post(
+                "https://api.groq.com/openai/v1/chat/completions",
+                headers={
+                    "Authorization": f"Bearer {groq_key}",
+                    "Content-Type": "application/json"
+                },
+                json={
+                    "model": "llama-3.1-8b-instant",
+                    "messages": [{"role": "user", "content": prompt}],
+                    "temperature": 0.8,
+                    "max_tokens": 150
+                },
+                timeout=10
+            )
+            
+            if response.status_code == 200:
+                content = response.json()["choices"][0]["message"]["content"]
+                match = re.search(r'\{[\s\S]*\}', content)
+                if match:
+                    result = json.loads(match.group())
+                    if result.get("headline"):
+                        print(f"   [OK] Groq generated thumbnail concept (fallback)")
+                        return result
+        except Exception as e:
+            print(f"   [!] Groq thumbnail failed: {e}")
+    
+    # Ultimate fallback
     return {
         "headline": shorten_for_thumbnail(topic),
         "color_mood": category.lower() if category.lower() in COLOR_SCHEMES else "default",
@@ -150,7 +171,7 @@ def generate_thumbnail(
     topic: str,
     category: str = "",
     output_path: Optional[str] = None,
-    groq_key: str = None
+    gemini_key: str = None
 ) -> Optional[str]:
     """
     Generate a high-CTR thumbnail using AI.
@@ -182,9 +203,9 @@ def generate_thumbnail(
         hash_id = hashlib.md5(topic.encode()).hexdigest()[:8]
         output_path = str(thumb_dir / f"thumb_{hash_id}.png")
     
-    # v8.5: AI generates the thumbnail concept!
-    print(f"   [AI] Generating thumbnail concept...")
-    concept = get_ai_thumbnail_concept(topic, category, groq_key)
+    # v8.7: AI generates the thumbnail concept using GEMINI (free tokens!)
+    print(f"   [AI] Generating thumbnail concept (using Gemini)...")
+    concept = get_ai_thumbnail_concept(topic, category, gemini_key)
     
     # Select color scheme based on AI analysis
     color_mood = concept.get("color_mood", "default")

@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 """
 ViralShorts Factory - PROFESSIONAL Video Generator v8.0
 =========================================================
