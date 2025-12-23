@@ -587,6 +587,14 @@ def get_viral_prompt_boost() -> str:
         if state.get("priority_improvements"):
             analytics_boost += f"\n\nPRIORITY IMPROVEMENTS: {', '.join(state['priority_improvements'][:3])}"
         
+        # A/B TITLE TESTING: Use learned title styles
+        if state.get("best_title_styles"):
+            analytics_boost += f"\n\nBEST TITLE STYLES (from A/B testing): {', '.join(state['best_title_styles'][:3])}"
+        
+        # AUDIENCE TIMING (informational - Shorts timing is less critical)
+        if state.get("best_posting_days"):
+            analytics_boost += f"\n\nBEST POSTING DAYS: {', '.join(state['best_posting_days'][:3])}"
+        
         if analytics_boost:
             viral_additions += f"\n\n=== OUR ANALYTICS INSIGHTS (GOLD-VALUE) ==={analytics_boost}\n"
         

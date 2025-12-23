@@ -876,13 +876,37 @@ JSON ONLY."""
         if result and result.get('title_variants'):
             variants = result.get('title_variants', [])
             if variants:
-                # Pick a random variant (A/B testing)
+                # FULL A/B Testing: Weight toward learned best styles
                 import random
-                chosen = random.choice(variants)
+                
+                # Try to get learned best styles from analytics
+                best_styles = []
+                try:
+                    if PERSISTENT_STATE_AVAILABLE:
+                        variety_mgr = get_variety_manager()
+                        best_styles = variety_mgr.state.get('best_title_styles', [])
+                except:
+                    pass
+                
+                if best_styles:
+                    # Weight toward best styles (70% best, 30% random for exploration)
+                    weighted_variants = []
+                    for v in variants:
+                        style = v.get('style', '')
+                        if style in best_styles:
+                            weighted_variants.extend([v] * 3)  # 3x weight for best styles
+                        else:
+                            weighted_variants.append(v)
+                    chosen = random.choice(weighted_variants)
+                    safe_print(f"   A/B: Using learned weights (best: {best_styles})")
+                else:
+                    # No learned data yet - pure random for exploration
+                    chosen = random.choice(variants)
+                    safe_print(f"   A/B: Exploring (no learned preferences yet)")
+                
                 result['title'] = chosen.get('title', variants[0].get('title', ''))
                 result['title_style'] = chosen.get('style', 'unknown')
                 safe_print(f"   Title (style={result['title_style']}): {result.get('title', 'N/A')}")
-                safe_print(f"   A/B: Generated {len(variants)} variants, picked '{result['title_style']}'")
         elif result and result.get('title'):
             result['title_style'] = 'single'
             safe_print(f"   Title: {result.get('title', 'N/A')}")
