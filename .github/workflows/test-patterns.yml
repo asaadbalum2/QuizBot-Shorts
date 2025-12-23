@@ -1,0 +1,30 @@
+﻿name: Test Pattern Loading Only
+on: workflow_dispatch
+jobs:
+  test-patterns:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Restore persistent state
+        uses: dawidd6/action-download-artifact@v3
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          name: persistent-state
+          path: data/persistent/
+          if_no_artifact_found: warn
+          search_artifacts: true
+        continue-on-error: true
+      - name: Test pattern loading
+        run: |
+          echo "=== FILES DOWNLOADED ==="
+          ls -la data/persistent/ || echo "No persistent dir"
+          echo ""
+          echo "=== VIRAL PATTERNS CONTENT ==="
+          cat data/persistent/viral_patterns.json 2>/dev/null || echo "No viral_patterns.json"
+          echo ""
+          echo "=== VARIETY STATE CONTENT ==="
+          cat data/persistent/variety_state.json 2>/dev/null || echo "No variety_state.json"
