@@ -1,0 +1,383 @@
+name: Weekly Analytics Feedback - Learn from Our Performance
+
+# Runs weekly to analyze OUR video performance and adjust strategy
+# Fully autonomous - no human intervention needed!
+
+on:
+  # Weekly on Sunday at 2 AM UTC
+  schedule:
+    - cron: '0 2 * * 0'
+  
+  # Manual trigger for testing
+  workflow_dispatch:
+
+jobs:
+  analyze-our-performance:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install requests
+
+      - name: Restore persistent state
+        uses: dawidd6/action-download-artifact@v3
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          workflow: generate.yml
+          name: persistent-state
+          path: data/persistent/
+          if_no_artifact_found: ignore
+        continue-on-error: true
+
+      - name: Create directories
+        run: mkdir -p data/persistent
+
+      # ================================================================
+      # FETCH PERFORMANCE DATA FROM OUR YOUTUBE CHANNEL
+      # ================================================================
+      - name: Fetch Our Video Performance
+        run: |
+          python << 'EOF'
+          import os
+          import json
+          import requests
+          from datetime import datetime, timedelta
+          from pathlib import Path
+
+          YOUTUBE_CLIENT_ID = os.environ.get("YOUTUBE_CLIENT_ID")
+          YOUTUBE_CLIENT_SECRET = os.environ.get("YOUTUBE_CLIENT_SECRET")
+          YOUTUBE_REFRESH_TOKEN = os.environ.get("YOUTUBE_REFRESH_TOKEN")
+          GROQ_API_KEY = os.environ.get("GROQ_API_KEY")
+
+          ANALYTICS_FILE = Path("data/persistent/analytics_state.json")
+          VARIETY_FILE = Path("data/persistent/variety_state.json")
+          VIRAL_PATTERNS_FILE = Path("data/persistent/viral_patterns.json")
+
+          def safe_print(msg):
+              try: print(msg)
+              except: print(msg.encode('ascii', 'ignore').decode())
+
+          def get_access_token():
+              """Get fresh YouTube access token."""
+              if not all([YOUTUBE_CLIENT_ID, YOUTUBE_CLIENT_SECRET, YOUTUBE_REFRESH_TOKEN]):
+                  return None
+              
+              try:
+                  response = requests.post(
+                      "https://oauth2.googleapis.com/token",
+                      data={
+                          "client_id": YOUTUBE_CLIENT_ID,
+                          "client_secret": YOUTUBE_CLIENT_SECRET,
+                          "refresh_token": YOUTUBE_REFRESH_TOKEN,
+                          "grant_type": "refresh_token",
+                      },
+                      timeout=15
+                  )
+                  if response.status_code == 200:
+                      return response.json().get("access_token")
+              except Exception as e:
+                  safe_print(f"[!] Token error: {e}")
+              return None
+
+          def get_our_videos(access_token, max_results=50):
+              """Get our channel's recent videos."""
+              if not access_token:
+                  return []
+              
+              headers = {"Authorization": f"Bearer {access_token}"}
+              
+              try:
+                  # Get our channel
+                  response = requests.get(
+                      "https://www.googleapis.com/youtube/v3/channels",
+                      params={"part": "contentDetails", "mine": "true"},
+                      headers=headers,
+                      timeout=15
+                  )
+                  
+                  if response.status_code != 200:
+                      safe_print(f"[!] Channel fetch failed: {response.status_code}")
+                      return []
+                  
+                  data = response.json()
+                  if not data.get("items"):
+                      return []
+                  
+                  uploads_playlist = data["items"][0]["contentDetails"]["relatedPlaylists"]["uploads"]
+                  
+                  # Get videos from playlist
+                  response = requests.get(
+                      "https://www.googleapis.com/youtube/v3/playlistItems",
+                      params={
+                          "part": "snippet",
+                          "playlistId": uploads_playlist,
+                          "maxResults": max_results
+                      },
+                      headers=headers,
+                      timeout=15
+                  )
+                  
+                  if response.status_code != 200:
+                      return []
+                  
+                  videos = []
+                  for item in response.json().get("items", []):
+                      videos.append({
+                          "id": item["snippet"]["resourceId"]["videoId"],
+                          "title": item["snippet"]["title"],
+                          "published": item["snippet"]["publishedAt"]
+                      })
+                  
+                  return videos
+              except Exception as e:
+                  safe_print(f"[!] Get videos error: {e}")
+                  return []
+
+          def get_video_stats(access_token, video_ids):
+              """Get stats for our videos."""
+              if not access_token or not video_ids:
+                  return {}
+              
+              headers = {"Authorization": f"Bearer {access_token}"}
+              
+              try:
+                  response = requests.get(
+                      "https://www.googleapis.com/youtube/v3/videos",
+                      params={
+                          "part": "statistics",
+                          "id": ",".join(video_ids[:50])
+                      },
+                      headers=headers,
+                      timeout=15
+                  )
+                  
+                  if response.status_code == 200:
+                      stats = {}
+                      for item in response.json().get("items", []):
+                          stats[item["id"]] = {
+                              "views": int(item["statistics"].get("viewCount", 0)),
+                              "likes": int(item["statistics"].get("likeCount", 0)),
+                              "comments": int(item["statistics"].get("commentCount", 0))
+                          }
+                      return stats
+              except Exception as e:
+                  safe_print(f"[!] Stats error: {e}")
+              return {}
+
+          def analyze_performance_with_ai(videos_with_stats):
+              """Use AI to analyze what's working for us."""
+              if not GROQ_API_KEY or not videos_with_stats:
+                  return {}
+              
+              prompt = f"""Analyze our YouTube Shorts performance and recommend improvements:
+
+          OUR VIDEO DATA (with performance):
+          {json.dumps(videos_with_stats[:15], indent=2)}
+
+          Analyze:
+          1. Which video types/topics got the most views?
+          2. What title patterns worked best?
+          3. What should we do MORE of?
+          4. What should we AVOID?
+          5. Specific recommendations for next videos
+
+          Return JSON:
+          {{
+              "best_performing_categories": ["category1", "category2"],
+              "best_title_patterns": ["pattern1", "pattern2"],
+              "do_more": ["recommendation1", "recommendation2"],
+              "avoid": ["thing_to_avoid1", "thing_to_avoid2"],
+              "next_video_suggestions": ["specific topic 1", "specific topic 2"],
+              "category_weights": {{"category1": 0.3, "category2": 0.25, ...}},
+              "key_insight": "One sentence summary of most important finding"
+          }}
+
+          Base analysis on ACTUAL performance numbers. JSON ONLY."""
+
+              try:
+                  response = requests.post(
+                      "https://api.groq.com/openai/v1/chat/completions",
+                      headers={
+                          "Authorization": f"Bearer {GROQ_API_KEY}",
+                          "Content-Type": "application/json"
+                      },
+                      json={
+                          "model": "llama-3.3-70b-versatile",
+                          "messages": [{"role": "user", "content": prompt}],
+                          "temperature": 0.7,
+                          "max_tokens": 800
+                      },
+                      timeout=30
+                  )
+                  
+                  if response.status_code == 200:
+                      content = response.json()["choices"][0]["message"]["content"]
+                      import re
+                      match = re.search(r'\{[\s\S]*\}', content)
+                      if match:
+                          return json.loads(match.group())
+              except Exception as e:
+                  safe_print(f"[!] AI analysis error: {e}")
+              return {}
+
+          # ================================================================
+          # MAIN FLOW
+          # ================================================================
+          safe_print("=" * 60)
+          safe_print("WEEKLY ANALYTICS FEEDBACK")
+          safe_print(f"Date: {datetime.now().isoformat()}")
+          safe_print("=" * 60)
+
+          # Get access token
+          access_token = get_access_token()
+          if not access_token:
+              safe_print("[!] Could not get YouTube access token")
+              exit(0)
+
+          safe_print("[OK] YouTube authenticated")
+
+          # Get our videos
+          our_videos = get_our_videos(access_token, max_results=50)
+          safe_print(f"[OK] Found {len(our_videos)} videos")
+
+          if not our_videos:
+              safe_print("[!] No videos found - nothing to analyze")
+              exit(0)
+
+          # Get stats
+          video_ids = [v["id"] for v in our_videos]
+          stats = get_video_stats(access_token, video_ids)
+          safe_print(f"[OK] Got stats for {len(stats)} videos")
+
+          # Merge stats with video data
+          for video in our_videos:
+              if video["id"] in stats:
+                  video.update(stats[video["id"]])
+
+          # Sort by views
+          our_videos.sort(key=lambda x: x.get("views", 0), reverse=True)
+
+          safe_print("\n[TOP PERFORMERS]")
+          for i, v in enumerate(our_videos[:5], 1):
+              safe_print(f"  {i}. {v.get('views', 0):,} views - {v.get('title', 'N/A')[:50]}")
+
+          # AI Analysis
+          safe_print("\n[AI ANALYSIS]")
+          analysis = analyze_performance_with_ai(our_videos)
+
+          if analysis:
+              safe_print(f"  Key insight: {analysis.get('key_insight', 'N/A')}")
+              safe_print(f"  Best categories: {analysis.get('best_performing_categories', [])}")
+              safe_print(f"  Do more: {analysis.get('do_more', [])[:2]}")
+              
+              # Update variety state with learned preferences
+              variety_state = {}
+              if VARIETY_FILE.exists():
+                  try:
+                      with open(VARIETY_FILE, 'r') as f:
+                          variety_state = json.load(f)
+                  except:
+                      pass
+              
+              # Update category weights based on performance
+              if analysis.get("category_weights"):
+                  variety_state["learned_weights"] = analysis["category_weights"]
+              
+              if analysis.get("best_performing_categories"):
+                  variety_state["preferred_categories"] = analysis["best_performing_categories"]
+              
+              if analysis.get("avoid"):
+                  variety_state["avoid_categories"] = analysis["avoid"]
+              
+              variety_state["last_feedback"] = datetime.now().isoformat()
+              
+              with open(VARIETY_FILE, 'w') as f:
+                  json.dump(variety_state, f, indent=2)
+              
+              # Update viral patterns with our best patterns
+              viral_patterns = {}
+              if VIRAL_PATTERNS_FILE.exists():
+                  try:
+                      with open(VIRAL_PATTERNS_FILE, 'r') as f:
+                          viral_patterns = json.load(f)
+                  except:
+                      pass
+              
+              if analysis.get("best_title_patterns"):
+                  existing = viral_patterns.get("our_best_patterns", [])
+                  for p in analysis["best_title_patterns"]:
+                      if p not in existing:
+                          existing.append(p)
+                  viral_patterns["our_best_patterns"] = existing[-10:]
+              
+              if analysis.get("next_video_suggestions"):
+                  viral_patterns["ai_suggested_topics"] = analysis["next_video_suggestions"]
+              
+              viral_patterns["last_performance_update"] = datetime.now().isoformat()
+              
+              with open(VIRAL_PATTERNS_FILE, 'w') as f:
+                  json.dump(viral_patterns, f, indent=2)
+              
+              # Save full analytics
+              analytics_state = {
+                  "videos": our_videos[:50],
+                  "analysis": analysis,
+                  "last_updated": datetime.now().isoformat(),
+                  "total_views": sum(v.get("views", 0) for v in our_videos),
+                  "avg_views": sum(v.get("views", 0) for v in our_videos) / len(our_videos) if our_videos else 0
+              }
+              
+              with open(ANALYTICS_FILE, 'w') as f:
+                  json.dump(analytics_state, f, indent=2)
+              
+              safe_print("\n[SAVED] Analytics feedback saved!")
+              safe_print("  -> variety_state.json updated with learned preferences")
+              safe_print("  -> viral_patterns.json updated with best patterns")
+              safe_print("  -> Video generator will use these automatically!")
+          else:
+              safe_print("[!] AI analysis returned no results")
+
+          safe_print("\n" + "=" * 60)
+          safe_print("FEEDBACK COMPLETE - Next generation will use learnings!")
+          safe_print("=" * 60)
+          EOF
+        env:
+          YOUTUBE_CLIENT_ID: ${{ secrets.YOUTUBE_CLIENT_ID }}
+          YOUTUBE_CLIENT_SECRET: ${{ secrets.YOUTUBE_CLIENT_SECRET }}
+          YOUTUBE_REFRESH_TOKEN: ${{ secrets.YOUTUBE_REFRESH_TOKEN }}
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+
+      - name: Save updated state
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: persistent-state
+          path: data/persistent/
+          retention-days: 30
+          overwrite: true
+
+      - name: Summary
+        run: |
+          echo "## Weekly Analytics Feedback Complete" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### The Autonomous Feedback Loop" >> $GITHUB_STEP_SUMMARY
+          echo "1. Fetched performance data from our YouTube channel" >> $GITHUB_STEP_SUMMARY
+          echo "2. AI analyzed what's working and what's not" >> $GITHUB_STEP_SUMMARY
+          echo "3. Updated variety preferences (category weights)" >> $GITHUB_STEP_SUMMARY
+          echo "4. Updated viral patterns (best title patterns)" >> $GITHUB_STEP_SUMMARY
+          echo "5. Next video generation will use these automatically!" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### No Human Intervention Needed!" >> $GITHUB_STEP_SUMMARY
+          echo "This workflow runs every Sunday and feeds learnings back." >> $GITHUB_STEP_SUMMARY
+

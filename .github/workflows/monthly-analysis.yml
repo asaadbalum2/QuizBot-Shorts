@@ -1,0 +1,336 @@
+name: Monthly Viral Analysis - Learn from Top AI Shorts
+
+# Runs once a month to analyze successful AI-generated Shorts channels
+# and feed learnings back into our video generation system
+
+on:
+  # Monthly on the 1st at 3 AM UTC
+  schedule:
+    - cron: '0 3 1 * *'
+  
+  # Manual trigger for testing
+  workflow_dispatch:
+    inputs:
+      max_channels:
+        description: 'Max channels to analyze'
+        required: false
+        default: '5'
+      skip_upload_day:
+        description: 'Skip video generation today (save quota for analysis)'
+        required: false
+        default: 'true'
+        type: choice
+        options:
+          - 'true'
+          - 'false'
+
+jobs:
+  analyze-viral-channels:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install requests google-api-python-client
+
+      - name: Restore persistent state
+        uses: dawidd6/action-download-artifact@v3
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          workflow: generate.yml
+          name: persistent-state
+          path: data/persistent/
+          if_no_artifact_found: ignore
+        continue-on-error: true
+
+      - name: Create data directories
+        run: mkdir -p data/persistent data/analysis
+
+      # ================================================================
+      # MAIN ANALYSIS: Find and learn from top AI-generated Shorts
+      # ================================================================
+      - name: Analyze Top AI Shorts Channels
+        id: analysis
+        run: |
+          python << 'EOF'
+          import os
+          import json
+          import requests
+          from datetime import datetime
+          from pathlib import Path
+
+          # API Keys
+          YOUTUBE_API_KEY = os.environ.get("YOUTUBE_API_KEY")
+          GROQ_API_KEY = os.environ.get("GROQ_API_KEY")
+
+          ANALYSIS_FILE = Path("data/persistent/monthly_analysis.json")
+          VIRAL_PATTERNS_FILE = Path("data/persistent/viral_patterns.json")
+
+          def safe_print(msg):
+              try: print(msg)
+              except: print(msg.encode('ascii', 'ignore').decode())
+
+          def youtube_search(query, max_results=10):
+              """Search YouTube for videos."""
+              if not YOUTUBE_API_KEY:
+                  safe_print("[!] No YouTube API key")
+                  return []
+              
+              url = "https://www.googleapis.com/youtube/v3/search"
+              params = {
+                  "key": YOUTUBE_API_KEY,
+                  "q": query,
+                  "part": "snippet",
+                  "type": "video",
+                  "videoDuration": "short",  # Shorts only
+                  "order": "viewCount",
+                  "maxResults": max_results,
+                  "publishedAfter": "2024-01-01T00:00:00Z"
+              }
+              
+              try:
+                  response = requests.get(url, params=params, timeout=15)
+                  if response.status_code == 200:
+                      return response.json().get("items", [])
+              except Exception as e:
+                  safe_print(f"[!] Search error: {e}")
+              return []
+
+          def get_video_details(video_ids):
+              """Get detailed stats for videos."""
+              if not YOUTUBE_API_KEY or not video_ids:
+                  return []
+              
+              url = "https://www.googleapis.com/youtube/v3/videos"
+              params = {
+                  "key": YOUTUBE_API_KEY,
+                  "id": ",".join(video_ids),
+                  "part": "statistics,snippet,contentDetails"
+              }
+              
+              try:
+                  response = requests.get(url, params=params, timeout=15)
+                  if response.status_code == 200:
+                      return response.json().get("items", [])
+              except Exception as e:
+                  safe_print(f"[!] Details error: {e}")
+              return []
+
+          def analyze_with_ai(videos_data):
+              """Use AI to extract patterns from successful videos."""
+              if not GROQ_API_KEY or not videos_data:
+                  return {}
+              
+              prompt = f"""Analyze these successful YouTube Shorts and extract viral patterns:
+
+          VIDEO DATA:
+          {json.dumps(videos_data, indent=2)}
+
+          Extract:
+          1. TITLE PATTERNS: What title structures get views? Use {{placeholders}}
+          2. TOPIC CATEGORIES: What categories perform best?
+          3. HOOK TECHNIQUES: How do successful videos start?
+          4. ENGAGEMENT TACTICS: How do they drive comments/likes?
+          5. OPTIMAL LENGTH: What durations perform best?
+
+          Return JSON:
+          {{
+              "title_patterns": ["pattern1", "pattern2", ...],
+              "top_categories": ["category1", "category2", ...],
+              "hook_patterns": ["hook1", "hook2", ...],
+              "engagement_baits": ["bait1", "bait2", ...],
+              "insights": ["key insight 1", "key insight 2", ...],
+              "optimal_duration_seconds": number
+          }}
+
+          Be specific based on the ACTUAL data provided. JSON ONLY."""
+
+              try:
+                  response = requests.post(
+                      "https://api.groq.com/openai/v1/chat/completions",
+                      headers={
+                          "Authorization": f"Bearer {GROQ_API_KEY}",
+                          "Content-Type": "application/json"
+                      },
+                      json={
+                          "model": "llama-3.3-70b-versatile",  # Best model for analysis
+                          "messages": [{"role": "user", "content": prompt}],
+                          "temperature": 0.7,
+                          "max_tokens": 1000
+                      },
+                      timeout=30
+                  )
+                  
+                  if response.status_code == 200:
+                      content = response.json()["choices"][0]["message"]["content"]
+                      import re
+                      match = re.search(r'\{[\s\S]*\}', content)
+                      if match:
+                          return json.loads(match.group())
+              except Exception as e:
+                  safe_print(f"[!] AI analysis error: {e}")
+              return {}
+
+          # ================================================================
+          # MAIN ANALYSIS FLOW
+          # ================================================================
+          safe_print("=" * 60)
+          safe_print("MONTHLY VIRAL ANALYSIS")
+          safe_print(f"Date: {datetime.now().isoformat()}")
+          safe_print("=" * 60)
+
+          # Search queries for AI-generated content niches
+          search_queries = [
+              "AI generated shorts facts viral",
+              "facts shorts 2024 million views",
+              "psychology facts shorts viral",
+              "did you know shorts trending",
+              "life hacks shorts viral 2024"
+          ]
+
+          all_videos = []
+          seen_ids = set()
+
+          for query in search_queries:
+              safe_print(f"\n[SEARCH] {query}")
+              results = youtube_search(query, max_results=5)
+              
+              for item in results:
+                  vid_id = item.get("id", {}).get("videoId")
+                  if vid_id and vid_id not in seen_ids:
+                      seen_ids.add(vid_id)
+                      all_videos.append({
+                          "id": vid_id,
+                          "title": item.get("snippet", {}).get("title", ""),
+                          "channel": item.get("snippet", {}).get("channelTitle", ""),
+                          "published": item.get("snippet", {}).get("publishedAt", "")
+                      })
+
+          safe_print(f"\n[FOUND] {len(all_videos)} unique videos")
+
+          # Get detailed stats
+          if all_videos:
+              video_ids = [v["id"] for v in all_videos[:20]]  # Limit API calls
+              details = get_video_details(video_ids)
+              
+              # Merge stats
+              stats_map = {d["id"]: d for d in details}
+              for video in all_videos:
+                  if video["id"] in stats_map:
+                      stats = stats_map[video["id"]]
+                      video["views"] = int(stats.get("statistics", {}).get("viewCount", 0))
+                      video["likes"] = int(stats.get("statistics", {}).get("likeCount", 0))
+                      video["comments"] = int(stats.get("statistics", {}).get("commentCount", 0))
+
+          # Sort by views
+          all_videos.sort(key=lambda x: x.get("views", 0), reverse=True)
+          top_videos = all_videos[:10]
+
+          safe_print("\n[TOP VIDEOS]")
+          for i, v in enumerate(top_videos, 1):
+              safe_print(f"  {i}. {v.get('views', 0):,} views - {v.get('title', 'N/A')[:50]}")
+
+          # AI Analysis
+          safe_print("\n[AI ANALYSIS]")
+          analysis = analyze_with_ai(top_videos)
+
+          if analysis:
+              safe_print(f"  Title patterns: {len(analysis.get('title_patterns', []))}")
+              safe_print(f"  Top categories: {analysis.get('top_categories', [])}")
+              safe_print(f"  Key insights: {len(analysis.get('insights', []))}")
+              
+              # Save analysis results
+              analysis_result = {
+                  "date": datetime.now().isoformat(),
+                  "videos_analyzed": len(top_videos),
+                  "top_video_views": top_videos[0].get("views", 0) if top_videos else 0,
+                  "patterns": analysis,
+                  "raw_videos": top_videos
+              }
+              
+              with open(ANALYSIS_FILE, 'w') as f:
+                  json.dump(analysis_result, f, indent=2)
+              
+              # Update viral patterns file for use by video generator
+              existing_patterns = {}
+              if VIRAL_PATTERNS_FILE.exists():
+                  try:
+                      with open(VIRAL_PATTERNS_FILE, 'r') as f:
+                          existing_patterns = json.load(f)
+                  except:
+                      pass
+              
+              # Merge new patterns with existing
+              for key in ["title_patterns", "hook_patterns", "engagement_baits"]:
+                  if key in analysis:
+                      existing = existing_patterns.get(key, [])
+                      for item in analysis[key]:
+                          if item not in existing:
+                              existing.append(item)
+                      existing_patterns[key] = existing[-20:]  # Keep last 20
+              
+              if analysis.get("top_categories"):
+                  existing_patterns["proven_categories"] = analysis["top_categories"]
+              
+              if analysis.get("insights"):
+                  existing_patterns["latest_insights"] = analysis["insights"]
+              
+              existing_patterns["last_updated"] = datetime.now().isoformat()
+              existing_patterns["ai_generated"] = True
+              existing_patterns["source"] = "youtube_analysis"
+              
+              with open(VIRAL_PATTERNS_FILE, 'w') as f:
+                  json.dump(existing_patterns, f, indent=2)
+              
+              safe_print("\n[SAVED] Patterns updated for video generation")
+          else:
+              safe_print("[!] AI analysis returned no results")
+
+          safe_print("\n" + "=" * 60)
+          safe_print("ANALYSIS COMPLETE")
+          safe_print("=" * 60)
+          EOF
+        env:
+          YOUTUBE_API_KEY: ${{ secrets.YOUTUBE_API_KEY }}
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+
+      # Save updated patterns for video generator to use
+      - name: Save updated patterns
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: persistent-state
+          path: data/persistent/
+          retention-days: 30
+          overwrite: true
+
+      - name: Summary
+        run: |
+          echo "## Monthly Viral Analysis Complete" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Date:** $(date -u)" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### What This Does" >> $GITHUB_STEP_SUMMARY
+          echo "1. Searches YouTube for top-performing AI-generated Shorts" >> $GITHUB_STEP_SUMMARY
+          echo "2. Analyzes title patterns, hooks, engagement tactics" >> $GITHUB_STEP_SUMMARY
+          echo "3. Uses AI to extract reusable patterns" >> $GITHUB_STEP_SUMMARY
+          echo "4. Saves patterns to persistent state" >> $GITHUB_STEP_SUMMARY
+          echo "5. Video generator uses these patterns automatically!" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Quota Used" >> $GITHUB_STEP_SUMMARY
+          echo "- YouTube API: ~30-50 read operations (very cheap)" >> $GITHUB_STEP_SUMMARY
+          echo "- Groq: ~1000 tokens for analysis" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Next Steps" >> $GITHUB_STEP_SUMMARY
+          echo "The next video generation will automatically use the new patterns!" >> $GITHUB_STEP_SUMMARY
+

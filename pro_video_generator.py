@@ -278,10 +278,29 @@ class MasterAI:
             except Exception as e:
                 safe_print(f"[!] Gemini init failed: {e}")
     
-    def call_ai(self, prompt: str, max_tokens: int = 2000, temperature: float = 0.9) -> str:
-        """Call AI with automatic fallback chain: Groq -> Gemini 2.0 -> Gemini 1.5 -> Gemini Pro."""
+    def call_ai(self, prompt: str, max_tokens: int = 2000, temperature: float = 0.9, 
+                 prefer_gemini: bool = False) -> str:
+        """
+        Call AI with smart load balancing: Groq for speed, Gemini for capacity.
+        
+        v8.2: Load balancing to protect quotas:
+        - prefer_gemini=True: Use Gemini first (for non-critical tasks)
+        - prefer_gemini=False: Use Groq first (for time-sensitive tasks)
+        
+        Fallback chain: Primary -> Secondary -> Tertiary -> Quaternary
+        """
         import time
-        time.sleep(1.5)  # Rate limit protection between AI calls (v7.13)
+        time.sleep(1.0)  # Rate limit protection between AI calls
+        
+        # v8.2: Smart load balancing
+        if prefer_gemini and self.gemini_model:
+            # Try Gemini first to save Groq quota
+            try:
+                response = self.gemini_model.generate_content(prompt)
+                return response.text
+            except Exception as e:
+                safe_print(f"[!] Gemini primary error: {e}")
+                # Fall through to Groq
         
         # Primary: Groq (fastest, 100K tokens/day)
         if self.client:
@@ -728,7 +747,9 @@ OUTPUT JSON ONLY."""
     # STAGE 4: AI Generates B-Roll Keywords
     # ========================================================================
     def stage4_broll_keywords(self, phrases: List[str]) -> List[str]:
-        """AI generates visual keywords for each phrase."""
+        """AI generates visual keywords for each phrase.
+        v8.2: Uses Gemini to save Groq quota (non-critical task).
+        """
         safe_print("\n[STAGE 4] AI generating visual keywords...")
         
         prompt = f"""You are a VISUAL DIRECTOR for viral short videos.
@@ -749,7 +770,8 @@ Return exactly {len(phrases)} keywords as JSON array:
 
 JSON ARRAY ONLY."""
 
-        response = self.call_ai(prompt, 400, temperature=0.8)
+        # v8.2: Use Gemini for this task to save Groq quota
+        response = self.call_ai(prompt, 400, temperature=0.8, prefer_gemini=True)
         
         try:
             if "[" in response:
@@ -767,7 +789,9 @@ JSON ARRAY ONLY."""
     # STAGE 5: AI Generates Metadata
     # ========================================================================
     def stage5_metadata(self, content: Dict) -> Dict:
-        """AI generates viral metadata."""
+        """AI generates viral metadata.
+        v8.2: Uses Gemini to save Groq quota (non-critical task).
+        """
         safe_print("\n[STAGE 5] AI generating metadata...")
         
         concept = content.get('concept', {})
@@ -789,7 +813,8 @@ Value: {content.get('value_delivered', '')}
 
 JSON ONLY."""
 
-        response = self.call_ai(prompt, 300, temperature=0.8)
+        # v8.2: Use Gemini for this task to save Groq quota
+        response = self.call_ai(prompt, 300, temperature=0.8, prefer_gemini=True)
         result = self.parse_json(response)
         
         if result:
@@ -815,14 +840,15 @@ JSON ONLY."""
         if not available:
             available = EDGE_TTS_VOICES  # Reset if all used
         
-        safe_print(f"   🎤 AI selecting voice for {category}/{voice_style}...")
+        safe_print(f"   AI selecting voice for {category}/{voice_style}...")
         
         # OPTIMIZED prompt - much shorter to save tokens
+        # v8.2: Use Gemini for voice selection to save Groq quota
         prompt = f"""Pick voice for {category} video, style: {voice_style}.
 Available: {', '.join([v.split('-')[2].replace('Neural','') for v in available[:10]])}
 Return JSON: {{"voice": "full-voice-name", "rate": "+X%"}}"""
 
-        response = self.call_ai(prompt, 80, temperature=0.8)
+        response = self.call_ai(prompt, 80, temperature=0.8, prefer_gemini=True)
         result = self.parse_json(response)
         
         selected_voice = None
