@@ -537,12 +537,47 @@ Format as simple bullet points. Be specific and creative. Under 100 words total.
 
 def get_viral_prompt_boost() -> str:
     """
-    Quick function to get viral pattern additions for prompts.
+    Get COMPREHENSIVE viral + analytics-learned additions for prompts.
     
-    Use this in video generation prompts!
+    Combines:
+    - Viral patterns from other successful channels (monthly)
+    - Our own performance analytics (weekly)
+    - Micro-level preferences (music, voice, themes)
     """
     analyzer = ViralChannelAnalyzer()
-    return analyzer.get_optimized_prompt_additions()
+    viral_additions = analyzer.get_optimized_prompt_additions()
+    
+    # Also load our performance-learned preferences
+    try:
+        from persistent_state import get_variety_manager
+        variety_mgr = get_variety_manager()
+        state = variety_mgr.state
+        
+        analytics_boost = ""
+        
+        # Add learned preferences from our own analytics
+        if state.get("preferred_categories"):
+            analytics_boost += f"\nOUR BEST CATEGORIES (from analytics): {', '.join(state['preferred_categories'][:5])}"
+        
+        if state.get("preferred_music_moods"):
+            analytics_boost += f"\nPREFERRED MUSIC MOODS: {', '.join(state['preferred_music_moods'][:4])}"
+        
+        if state.get("preferred_voice_styles"):
+            analytics_boost += f"\nVOICE STYLES THAT WORK: {', '.join(state['preferred_voice_styles'][:3])}"
+        
+        if state.get("preferred_themes"):
+            analytics_boost += f"\nTHEMES THAT PERFORM: {', '.join(state['preferred_themes'][:5])}"
+        
+        if state.get("priority_improvements"):
+            analytics_boost += f"\nIMPROVEMENT PRIORITIES: {', '.join(state['priority_improvements'][:3])}"
+        
+        if analytics_boost:
+            viral_additions += f"\n\n=== OUR ANALYTICS INSIGHTS ==={analytics_boost}\n"
+        
+    except Exception as e:
+        pass  # Analytics not available yet
+    
+    return viral_additions
 
 
 def analyze_and_update_patterns():

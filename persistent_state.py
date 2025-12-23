@@ -354,6 +354,7 @@ class ViralPatternsManager:
     
     def __init__(self):
         self.patterns = self._load_patterns()
+        self.state = self.patterns  # Alias for consistency with other managers
     
     def _load_patterns(self) -> Dict:
         """Load viral patterns from file."""
