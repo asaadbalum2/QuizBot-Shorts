@@ -3547,6 +3547,21 @@ class CuriosityGapGenerator:
         if self.data["best_patterns"]:
             return self.data["best_patterns"][0]
         return "secret_that"
+    
+    def get_curiosity_instruction(self, topic: str = "") -> str:
+        """Get AI-friendly instruction for curiosity gap creation."""
+        best = self.get_best_pattern()
+        pattern_map = {
+            "what_happens_when": "Use 'What Happens When...' opening",
+            "the_real_reason": "Use 'The REAL Reason...' for authority",
+            "nobody_tells_you": "Use 'What Nobody Tells You...' for exclusivity",
+            "secret_that": "Use 'The Secret That...' for mystery",
+            "truth_about": "Use 'The Truth About...' for revelation",
+            "why_you_should": "Use 'Why You Should Never...' for controversy",
+            "what_if": "Use 'What If...' for speculation",
+            "hidden": "Use 'The Hidden...' for discovery"
+        }
+        return f"CURIOSITY GAP: {pattern_map.get(best, 'Create mystery that demands resolution')}"
 
 
 class NumberHookOptimizer:
@@ -3611,6 +3626,11 @@ class NumberHookOptimizer:
     
     def get_optimal_number(self) -> int:
         return self.data.get("best_number", 5)
+    
+    def get_number_recommendation(self, topic: str = "") -> str:
+        """Get AI-friendly instruction for number usage."""
+        best = self.get_optimal_number()
+        return f"NUMBER HOOK: Use {best} items/tips/secrets (odd numbers like 3,5,7 often work best)"
 
 
 class ControversyCalibrator:
@@ -3668,6 +3688,11 @@ class ControversyCalibrator:
                     best_avg = avg
                     best = ctype
         return best
+    
+    def get_safe_controversy_instruction(self, topic: str = "") -> str:
+        """Get AI-friendly instruction for safe controversy."""
+        best = self.get_best_controversy_type()
+        return f"SAFE CONTROVERSY: Use '{best.replace('_', ' ')}' style - drives engagement without risk"
 
 
 class FOMOInjector:
@@ -3714,6 +3739,19 @@ class FOMOInjector:
                     best_avg = avg
                     best = phrase
         return best
+    
+    def get_fomo_instruction(self) -> str:
+        """Get AI-friendly FOMO instruction."""
+        best = self.get_best_fomo_phrase()
+        fomo_map = {
+            "before_its_too_late": "Before it's too late...",
+            "limited_time": "For a limited time...",
+            "everyone_knows": "Everyone already knows except...",
+            "youre_missing": "You're missing out on...",
+            "dont_get_left_behind": "Don't get left behind...",
+            "others_already": "Others have already..."
+        }
+        return f"FOMO: Use '{fomo_map.get(best, best)}' to create urgency"
 
 
 class TitlePowerWordTracker:
