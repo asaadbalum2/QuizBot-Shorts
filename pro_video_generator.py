@@ -192,7 +192,7 @@ try:
         get_font_psychology, get_text_animation, get_voice_matcher,
         get_sound_library, get_tempo_matcher, get_genre_matcher,
         get_shock_opener, get_algorithm_signals,
-        get_color_grading, get_fomo_trigger,
+        get_color_grading, get_fomo_trigger, get_open_loop_technique,
         get_source_citation, get_yt_optimization, get_hook_body_payoff,
         get_performance_correlator, get_token_budget, get_yt_compliance
     )

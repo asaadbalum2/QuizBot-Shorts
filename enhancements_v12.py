@@ -4916,7 +4916,8 @@ def get_fomo_trigger() -> FOMOTrigger:
     return _fomo_trigger
 
 
-def get_open_loop() -> OpenLoopTechnique:
+def get_open_loop_technique() -> OpenLoopTechnique:
+    """v12 version - renamed to avoid conflict with v9's get_open_loop()"""
     global _open_loop
     if _open_loop is None:
         _open_loop = OpenLoopTechnique()
