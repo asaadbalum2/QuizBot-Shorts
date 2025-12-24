@@ -2441,6 +2441,14 @@ async def main():
     parser.add_argument("--no-upload", action="store_true")
     parser.add_argument("--strategic-youtube", action="store_true", 
                         help="Upload BEST video to YouTube, all to Dailymotion")
+    parser.add_argument("--test-mode", action="store_true",
+                        help="Test mode: skip delays, extra logging")
+    parser.add_argument("--output-dir", default="output",
+                        help="Directory to save generated videos")
+    parser.add_argument("--category", default=None,
+                        help="Force specific category (for testing)")
+    parser.add_argument("--topic", default=None,
+                        help="Force specific topic (for testing)")
     parser.add_argument("--use-seasonal", action="store_true",
                         help="Use seasonal content calendar for topic selection")
     # Legacy support - these are IGNORED, AI decides
