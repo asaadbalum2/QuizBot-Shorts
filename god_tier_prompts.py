@@ -1085,6 +1085,412 @@ JSON ONLY."""
 
 
 # =============================================================================
+# GOD-TIER PROMPT: Click Bait Optimization (#46-51 - v11.0)
+# =============================================================================
+
+CLICKBAIT_OPTIMIZATION_PROMPT = """You are a CLICK PSYCHOLOGY expert who understands what makes humans click.
+
+=== CURRENT TITLE/HOOK ===
+Title: {title}
+Hook: {hook}
+Category: {category}
+
+=== OPTIMIZE FOR CLICKS ===
+Apply these proven click triggers:
+
+1. CURIOSITY GAP: Create a gap between what they know and what they want to know
+   - Bad: "How to Save Money"
+   - Good: "The $27 Bill Trick Banks Don't Want You to Know"
+
+2. SPECIFICITY: Specific beats vague
+   - Bad: "Lose Weight Fast"
+   - Good: "The 4:30 AM Habit That Burns 300 Extra Calories"
+
+3. NUMBER MAGIC: Use odd numbers and be specific
+   - Bad: "Tips to Be Happier"
+   - Good: "7 Weird Things Happy People Do at 6 AM"
+
+4. POWER WORDS: shock, secret, truth, hidden, never, always, proven
+5. PERSONAL ATTACK: "You're doing X wrong" triggers defensiveness
+6. FOMO: "Before it's too late", "Everyone knows except you"
+
+=== OUTPUT JSON ===
+{{
+    "optimized_title": "click-optimized version",
+    "optimized_hook": "scroll-stopping hook",
+    "click_triggers_used": ["curiosity_gap", "specificity"],
+    "power_words_added": ["secret", "hidden"],
+    "predicted_ctr_improvement": "+35%",
+    "why_it_works": "specific reason this version clicks"
+}}
+
+JSON ONLY."""
+
+
+# =============================================================================
+# GOD-TIER PROMPT: First 3 Seconds Retention (#52-57 - v11.0)
+# =============================================================================
+
+FIRST_SECONDS_PROMPT = """You are a RETENTION EXPERT who specializes in the first 3 seconds of short-form video.
+
+=== CURRENT HOOK ===
+{hook}
+
+=== TOPIC ===
+{topic}
+
+=== THE CRITICAL FIRST 3 SECONDS ===
+You have 2-3 seconds to:
+1. STOP THE SCROLL - Pattern interrupt
+2. CREATE NEED - They MUST know what happens
+3. DELIVER VALUE - Give them something immediately
+
+=== TECHNIQUES ===
+1. SHOCKING STAT: Start with a mind-blowing number
+   "93% of people do this wrong..."
+
+2. DIRECT CHALLENGE: Attack their assumption
+   "You're breathing wrong. Here's proof."
+
+3. OPEN LOOP: Start a sentence they NEED completed
+   "The one thing billionaires never..."
+
+4. INSTANT VALUE: Give them something useful immediately
+   "Your phone battery lasts 40% longer if..."
+
+5. VISUAL SHOCK: Describe what they should see
+   "Show something unexpected in frame 1"
+
+=== OUTPUT JSON ===
+{{
+    "optimized_hook": "3-second hook text",
+    "technique": "which technique used",
+    "instant_value": "what value is delivered immediately",
+    "open_loop": "what question is left unanswered",
+    "visual_suggestion": "what should be on screen",
+    "audio_suggestion": "what sound to use",
+    "scroll_stop_score": 8
+}}
+
+JSON ONLY."""
+
+
+# =============================================================================
+# GOD-TIER PROMPT: Algorithm Optimization (#58-63 - v11.0)
+# =============================================================================
+
+ALGORITHM_OPTIMIZATION_PROMPT = """You are a YOUTUBE ALGORITHM EXPERT who understands exactly how Shorts get promoted.
+
+=== CONTENT ===
+{content}
+
+=== CATEGORY ===
+{category}
+
+=== ALGORITHM SIGNALS TO MAXIMIZE ===
+
+1. WATCH TIME: How to keep them watching
+   - Tease what's coming
+   - Progressive reveals
+   - Save the best for 70% through
+
+2. COMPLETION RATE: Get them to the end
+   - Perfect pacing (not too fast, not slow)
+   - Clear structure
+   - Satisfying ending
+
+3. RE-WATCH: Make them watch again
+   - Hidden details to catch
+   - Seamless loop
+   - "Wait, did I miss something?"
+
+4. ENGAGEMENT: Trigger comments/likes
+   - Ask questions
+   - Controversial (safe) takes
+   - Relatable moments
+
+5. SESSION TIME: Keep them on platform
+   - End with related topic tease
+   - Series connection
+
+=== OUTPUT JSON ===
+{{
+    "watch_time_hooks": ["specific hook 1", "specific hook 2"],
+    "completion_strategy": "how to ensure completion",
+    "rewatch_trigger": "what makes them watch again",
+    "comment_bait": "CTA to drive comments",
+    "share_trigger": "why they'd share",
+    "loop_friendly_ending": "how to make seamless loop",
+    "algorithm_score": 8
+}}
+
+JSON ONLY."""
+
+
+# =============================================================================
+# GOD-TIER PROMPT: Visual Optimization (#64-68 - v11.0)
+# =============================================================================
+
+VISUAL_OPTIMIZATION_PROMPT = """You are a VISUAL DESIGN expert for short-form video.
+
+=== VIDEO INFO ===
+Category: {category}
+Mood: {mood}
+Topic: {topic}
+
+=== OPTIMIZE VISUALS ===
+
+1. COLOR PSYCHOLOGY
+   - Red: urgency, excitement
+   - Blue: trust, calm
+   - Yellow: attention, optimism
+   - Green: money, growth
+   - Purple: luxury, mystery
+
+2. TEXT READABILITY (Mobile-first)
+   - Large fonts (60px+)
+   - Max 5 words per line
+   - High contrast
+   - Shadow or outline
+
+3. MOTION MATCHING
+   - Calm content = gentle pans
+   - Exciting content = quick cuts
+   - Suspense = slow zooms
+
+4. VISUAL VARIETY
+   - Change every 3-4 seconds
+   - Mix close-ups and wide shots
+   - Use B-roll strategically
+
+=== OUTPUT JSON ===
+{{
+    "primary_color": "#hex",
+    "color_reasoning": "why this color",
+    "text_style": "large_bold_shadow",
+    "motion_level": "subtle/moderate/dynamic/intense",
+    "cuts_per_video": 5,
+    "b_roll_suggestions": ["type 1", "type 2"],
+    "thumbnail_focus": "what to highlight",
+    "mobile_optimized": true
+}}
+
+JSON ONLY."""
+
+
+# =============================================================================
+# GOD-TIER PROMPT: Content Quality Check (#69-74 - v11.0)
+# =============================================================================
+
+CONTENT_QUALITY_PROMPT = """You are a CONTENT QUALITY expert who ensures videos are valuable, believable, and memorable.
+
+=== CONTENT TO REVIEW ===
+{content}
+
+=== QUALITY CHECKS ===
+
+1. CREDIBILITY CHECK
+   - Are claims believable?
+   - Are numbers realistic?
+   - Would a skeptic accept this?
+
+2. ACTIONABLE VALUE
+   - Is there a clear takeaway?
+   - Can they DO something after watching?
+   - Is the benefit clear?
+
+3. STORY STRUCTURE
+   - Is there a beginning, middle, end?
+   - Is there tension/resolution?
+   - Is the pacing right?
+
+4. MEMORABILITY
+   - Is there a sticky phrase?
+   - Will they remember this tomorrow?
+   - Is it quotable?
+
+5. RELATABILITY
+   - Can they see themselves in this?
+   - Is the language natural?
+   - Are examples relatable?
+
+6. AUTHENTICITY (Anti-AI Slop)
+   - Does it sound human?
+   - Is it specific, not generic?
+   - Would a real person say this?
+
+=== OUTPUT JSON ===
+{{
+    "overall_quality_score": 7.5,
+    "credibility": {{"score": 8, "issues": [], "fixes": []}},
+    "actionability": {{"score": 7, "current_takeaway": "...", "better_takeaway": "..."}},
+    "story_structure": {{"score": 8, "structure_type": "problem_solution"}},
+    "memorability": {{"score": 6, "memory_hook": "suggested sticky phrase"}},
+    "relatability": {{"score": 7, "add_phrase": "to make more relatable"}},
+    "authenticity": {{"score": 8, "ai_slop_detected": [], "humanize": []}},
+    "publish_ready": true,
+    "priority_fix": "most important improvement"
+}}
+
+JSON ONLY."""
+
+
+# =============================================================================
+# GOD-TIER PROMPT: Viral/Trend Optimization (#75-79 - v11.0)
+# =============================================================================
+
+VIRAL_TREND_PROMPT = """You are a VIRAL TREND expert who knows how to ride waves and create them.
+
+=== TOPIC ===
+{topic}
+
+=== CATEGORY ===
+{category}
+
+=== TREND ANALYSIS ===
+
+1. TREND LIFECYCLE
+   - Emerging: Get in early for maximum growth
+   - Growing: Good time, but move fast
+   - Peak: Risky, might be too late
+   - Declining: Avoid unless unique angle
+
+2. EVERGREEN VS TRENDING
+   - Balance: 60% evergreen, 40% trending
+   - Evergreen = consistent views forever
+   - Trending = spike then decline
+
+3. VIRAL PATTERNS
+   - Listicle: "5 Things..."
+   - Myth bust: "This is actually wrong"
+   - Comparison: "X vs Y"
+   - Tutorial: "How to X in Y seconds"
+   - Secret reveal: "The secret to..."
+
+4. CULTURAL MOMENTS
+   - Holidays, events, news
+   - Memes and internet culture
+   - Seasonal relevance
+
+=== OUTPUT JSON ===
+{{
+    "topic_assessment": {{
+        "is_trending": true or false,
+        "lifecycle_phase": "emerging/growing/peak/declining",
+        "is_evergreen": true or false,
+        "trend_score": 7
+    }},
+    "viral_pattern": "which pattern to use",
+    "cultural_tie_in": "relevant moment to reference" or null,
+    "timing": "post now or wait",
+    "angle_recommendation": "specific angle to take",
+    "competition_level": "low/medium/high/saturated"
+}}
+
+JSON ONLY."""
+
+
+# =============================================================================
+# GOD-TIER PROMPT: Analytics Deep Dive (#80-84 - v11.0)
+# =============================================================================
+
+ANALYTICS_DEEP_DIVE_PROMPT = """You are an ANALYTICS EXPERT who finds hidden insights in video performance data.
+
+=== PERFORMANCE DATA ===
+{performance_data}
+
+=== DEEP ANALYSIS ===
+
+1. RETENTION ANALYSIS
+   - Where do viewers drop off?
+   - What causes spikes?
+   - Pattern across videos?
+
+2. CORRELATION DISCOVERY
+   - Category vs Views
+   - Title length vs CTR
+   - Posting time vs Performance
+   - Voice vs Retention
+
+3. CHANNEL HEALTH
+   - Trend: growing, stable, declining?
+   - Shadow ban indicators?
+   - Engagement ratio healthy?
+
+4. GROWTH PREDICTION
+   - Based on current trajectory
+   - What would accelerate growth?
+   - What's holding back growth?
+
+=== OUTPUT JSON ===
+{{
+    "key_insights": [
+        {{"insight": "description", "impact": "high/medium/low", "action": "what to do"}}
+    ],
+    "correlations": [
+        {{"factor1": "...", "factor2": "...", "relationship": "positive/negative", "strength": 0.8}}
+    ],
+    "channel_health_score": 75,
+    "health_indicators": {{"trend": "growing", "shadow_ban_risk": "low", "engagement": "healthy"}},
+    "growth_prediction": {{"next_week": "+15%", "next_month": "+40%"}},
+    "priority_actions": ["top action 1", "top action 2", "top action 3"]
+}}
+
+JSON ONLY."""
+
+
+# =============================================================================
+# GOD-TIER PROMPT: Channel Growth Strategy (#85-89 - v11.0)
+# =============================================================================
+
+CHANNEL_GROWTH_PROMPT = """You are a CHANNEL GROWTH strategist who builds sustainable, long-term success.
+
+=== CHANNEL DATA ===
+{channel_data}
+
+=== GROWTH STRATEGY ===
+
+1. COMPETITOR RESPONSE
+   - What are competitors doing well?
+   - How can we differentiate?
+   - What gaps can we fill?
+
+2. NICHE AUTHORITY
+   - What niche should we own?
+   - How to become THE channel for X?
+   - Expertise signaling
+
+3. QUALITY CONSISTENCY
+   - Every video must meet standards
+   - No "throwaway" content
+   - Build trust through reliability
+
+4. UPLOAD CADENCE
+   - Optimal frequency?
+   - Consistency vs quantity?
+   - Audience expectations
+
+5. AUDIENCE LOYALTY
+   - How to build returning viewers?
+   - Community building
+   - Recognizable brand elements
+
+=== OUTPUT JSON ===
+{{
+    "niche_recommendation": "the niche we should own",
+    "differentiation": "how we stand out from competitors",
+    "authority_signals": ["ways to signal expertise"],
+    "quality_threshold": 7,
+    "optimal_cadence": "X videos per day/week",
+    "brand_elements": ["consistent elements to use"],
+    "loyalty_builders": ["ways to build returning viewers"],
+    "growth_priority": "single most important action"
+}}
+
+JSON ONLY."""
+
+
+# =============================================================================
 # Main Class
 # =============================================================================
 

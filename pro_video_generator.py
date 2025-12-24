@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-ViralShorts Factory - PROFESSIONAL Video Generator v10.0
+ViralShorts Factory - PROFESSIONAL Video Generator v11.0
 =========================================================
 
 100% AI-DRIVEN - NO HARDCODING!
@@ -8,23 +8,23 @@ ENFORCED VARIETY - Across ALL runs, not just single batch!
 VIRAL PATTERNS - Learned from successful channels!
 OPTIMAL LENGTH - 15-25 seconds (proven sweet spot)!
 
-v10.0 Changes:
-- All 45 enhancements integrated
-- Thumbnail text optimization (learns what works)
-- Emotional arc mapping (AI designs emotional journey)
-- Competitor gap analysis (find untapped topics)
-- Description SEO optimizer (ranks in search)
-- Comment sentiment tracking (positive vs negative)
-- Peak publishing optimizer (learn best times)
-- Title length optimizer (track optimal chars)
-- Music BPM matcher (match energy to tempo)
-- Intro pattern learner (which openings work)
-- Viral velocity predictor (estimate potential)
+v11.0 Changes - 44 NEW ENHANCEMENTS (8 CATEGORIES):
+- CLICK BAITING (#46-51): Curiosity gaps, number hooks, power words
+- FIRST SECONDS (#52-57): Pattern interrupts, open loops, instant value
+- ALGORITHM (#58-63): Watch time, completion, comments, shares, rewatch
+- VISUAL (#64-68): Color psychology, motion, readability, variety
+- CONTENT QUALITY (#69-74): Credibility, actionable, memorable, authentic
+- VIRAL/TRENDY (#75-79): Trend lifecycle, evergreen balance, viral patterns
+- ANALYTICS (#80-84): Micro-retention, correlations, health, growth
+- OTHER (#85-89): Competitors, niche authority, consistency, loyalty
 
 Previous versions:
-- v8.0: Persistent variety, upload tracking, shorter videos
-- v9.0: 25 core enhancements, AI-driven everything
-- v9.5: 35 enhancements (seasonal, hook words, series detection)
+- v8.0: Persistent variety, upload tracking
+- v9.0: 25 core enhancements
+- v9.5: 35 enhancements (seasonal, series)
+- v10.0: 45 enhancements (SEO, velocity)
+
+TOTAL: 89 ENHANCEMENTS - ALL AI-DRIVEN!
 """
 
 import os
@@ -67,7 +67,7 @@ except ImportError:
     VIRAL_PATTERNS_AVAILABLE = False
     get_viral_prompt_boost = lambda: ""
 
-# v10.0: Import comprehensive enhancements module (45 enhancements!)
+# v11.0: Import comprehensive enhancements module (89 enhancements!)
 try:
     from enhancements_v9 import (
         # Core orchestrator
@@ -103,16 +103,76 @@ try:
         analyze_competitor_gaps,
         optimize_description_seo,
         analyze_comment_sentiment,
-        predict_viral_velocity
+        predict_viral_velocity,
+        # v11.0 Category 1: Click Baiting
+        get_curiosity_gap,
+        get_number_hook,
+        get_controversy,
+        get_fomo,
+        get_power_words_tracker,
+        predict_ctr,
+        # v11.0 Category 2: First Seconds
+        get_pattern_interrupt,
+        get_open_loop,
+        get_first_frame,
+        get_audio_hook,
+        score_scroll_stop_power,
+        generate_instant_value_hook,
+        # v11.0 Category 3: Algorithm
+        get_watch_time,
+        get_completion_rate,
+        get_comment_bait,
+        get_share_trigger,
+        get_rewatch,
+        generate_algorithm_signals,
+        # v11.0 Category 4: Visual
+        get_color_psychology,
+        get_motion_energy,
+        get_text_readability,
+        get_visual_variety,
+        score_thumbnail_quality,
+        # v11.0 Category 5: Content Quality
+        get_fact_credibility,
+        get_actionable,
+        get_story_structure,
+        get_memory_hook,
+        get_relatability,
+        check_content_credibility,
+        enforce_actionable_takeaway,
+        generate_memory_hook,
+        check_relatability,
+        detect_ai_slop,
+        # v11.0 Category 6: Viral/Trendy
+        get_trend_lifecycle,
+        get_evergreen_balance,
+        get_cultural_moment,
+        get_viral_pattern,
+        get_platform_trend,
+        detect_cultural_moments,
+        # v11.0 Category 7: Analytics
+        get_micro_retention,
+        get_correlation,
+        get_channel_health,
+        get_growth_rate,
+        get_content_decay,
+        find_performance_correlations,
+        # v11.0 Category 8: Other
+        get_competitor_response,
+        get_niche_authority,
+        get_quality_consistency,
+        get_upload_cadence,
+        get_audience_loyalty,
+        generate_competitor_response
     )
-    ENHANCEMENTS_V10_AVAILABLE = True
+    ENHANCEMENTS_V11_AVAILABLE = True
 except ImportError as e:
-    ENHANCEMENTS_V10_AVAILABLE = False
-    print(f"[!] v10.0 enhancements not fully available: {e}")
+    ENHANCEMENTS_V11_AVAILABLE = False
+    print(f"[!] v11.0 enhancements not fully available: {e}")
 
 # Backward compatibility aliases
-ENHANCEMENTS_V95_AVAILABLE = ENHANCEMENTS_V10_AVAILABLE
-ENHANCEMENTS_AVAILABLE = ENHANCEMENTS_V10_AVAILABLE
+ENHANCEMENTS_V10_AVAILABLE = ENHANCEMENTS_V11_AVAILABLE
+ENHANCEMENTS_V95_AVAILABLE = ENHANCEMENTS_V11_AVAILABLE
+ENHANCEMENTS_AVAILABLE = ENHANCEMENTS_V11_AVAILABLE
 
 # v9.5: Import persistent state with series tracking
 try:
@@ -2390,11 +2450,11 @@ async def main():
     should_upload = args.upload and not args.no_upload
     
     safe_print(f"\n{'='*70}")
-    safe_print("   VIRALSHORTS FACTORY v10.0 - 45 ENHANCEMENTS INTEGRATED")
+    safe_print("   VIRALSHORTS FACTORY v11.0 - 89 ENHANCEMENTS INTEGRATED")
     safe_print(f"   Generating {args.count} video(s)")
     safe_print("   AI decides: category, topic, length, voice, music")
     safe_print("   QUALITY GATES: Pre-gen, post-content, post-render")
-    safe_print("   v10.0 FEATURES: Emotional arc, SEO, Viral prediction, Sentiment")
+    safe_print("   v11.0 FEATURES: Click bait, Scroll-stop, Algorithm, Visual, Quality")
     if args.strategic_youtube:
         safe_print("   STRATEGIC YOUTUBE: Best video selected by score")
     safe_print(f"{'='*70}")
