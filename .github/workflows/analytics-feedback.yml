@@ -11,9 +11,9 @@ name: Weekly Analytics Feedback - Learn from Our Performance (v10.0)
 # Fully autonomous - no human intervention needed!
 
 on:
-  # Weekly on Sunday at 2 AM UTC
+  # Twice weekly: Sunday + Wednesday at 2 AM UTC (faster learning)
   schedule:
-    - cron: '0 2 * * 0'
+    - cron: '0 2 * * 0,3'
   
   # Manual trigger for testing
   workflow_dispatch:
@@ -666,6 +666,8 @@ jobs:
           YOUTUBE_CLIENT_SECRET: ${{ secrets.YOUTUBE_CLIENT_SECRET }}
           YOUTUBE_REFRESH_TOKEN: ${{ secrets.YOUTUBE_REFRESH_TOKEN }}
           GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
 
       - name: Save updated state
         if: always()

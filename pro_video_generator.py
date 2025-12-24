@@ -488,11 +488,11 @@ class MasterAI:
                 except:
                     self.gemini_model = genai.GenerativeModel('gemini-2.0-flash')
                     safe_print("[OK] Gemini AI initialized (2.0-flash)")
+            except Exception as e:
+                safe_print(f"[!] Gemini init failed: {e}")
         
         if self.openrouter_available:
             safe_print("[OK] OpenRouter AI initialized (fallback)")
-            except Exception as e:
-                safe_print(f"[!] Gemini init failed: {e}")
     
     def call_ai(self, prompt: str, max_tokens: int = 2000, temperature: float = 0.9, 
                  prefer_gemini: bool = False) -> str:
