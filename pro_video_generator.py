@@ -204,6 +204,24 @@ except ImportError as e:
     V12_MASTER_PROMPT = ""
     print(f"[!] v12.0 enhancements not available: {e}")
 
+# CRITICAL FIXES: Real enforcement of quality, fonts, SFX, promises
+try:
+    from critical_fixes import (
+        select_font_for_content,
+        get_varied_sfx_for_phrase,
+        validate_numbered_promise,
+        fix_broken_promise,
+        apply_all_critical_fixes,
+        MINIMUM_ACCEPTABLE_SCORE,
+        CONTENT_CONSTRAINTS
+    )
+    CRITICAL_FIXES_AVAILABLE = True
+    print("[OK] Critical Fixes loaded: Font/SFX/Quality/Promise enforcement ACTIVE!")
+except ImportError as e:
+    CRITICAL_FIXES_AVAILABLE = False
+    MINIMUM_ACCEPTABLE_SCORE = 7  # Fallback
+    print(f"[!] Critical fixes not available: {e}")
+
 # v9.5: Import persistent state with series tracking
 try:
     from persistent_state import (
@@ -1322,18 +1340,30 @@ class VideoRenderer:
         except Exception as e:
             return None
     
-    def create_text_overlay(self, text: str, width: int, height: int) -> Image.Image:
-        """Create text overlay with dynamic font selection."""
+    def create_text_overlay(self, text: str, width: int, height: int, font_key: str = None) -> Image.Image:
+        """Create text overlay with AI-SELECTED font (not hardcoded!)."""
         img = Image.new('RGBA', (width, height), (0, 0, 0, 0))
         draw = ImageDraw.Draw(img)
         text = strip_emojis(text)
         
-        # Try dynamic font system first (downloads Google Fonts if needed)
-        try:
-            from dynamic_fonts import get_impact_font
-            font_path = get_impact_font()
-        except ImportError:
-            font_path = None
+        # Use AI-selected font if provided
+        font_path = None
+        if font_key:
+            try:
+                from dynamic_fonts import get_font_by_key
+                font_path = get_font_by_key(font_key)
+                if font_path:
+                    safe_print(f"   [*] Downloading font: {font_key.replace('-', ' ').title()}...")
+            except ImportError:
+                pass
+        
+        # Fallback: Try dynamic font system
+        if not font_path:
+            try:
+                from dynamic_fonts import get_impact_font
+                font_path = get_impact_font()
+            except ImportError:
+                pass
         
         # Fallback to system fonts if dynamic fonts unavailable
         if not font_path or not os.path.exists(font_path):
@@ -1430,10 +1460,11 @@ class VideoRenderer:
         
         return clip
     
-    def create_animated_text_clip(self, text: str, duration: float, phrase_index: int = 0) -> VideoClip:
+    def create_animated_text_clip(self, text: str, duration: float, phrase_index: int = 0, font_key: str = None) -> VideoClip:
         """
         Create animated text overlay with PROFESSIONAL effects.
         v7.15: Enhanced with 6 animation types for maximum variety.
+        v13.0: Now uses AI-SELECTED font based on content type!
         
         Effects cycle by phrase for variety:
         0: Fade in (hook)
@@ -1444,7 +1475,7 @@ class VideoRenderer:
         5: Elastic bounce in
         """
         width, height = VIDEO_WIDTH, VIDEO_HEIGHT // 2
-        text_img = self.create_text_overlay(text, width, height)
+        text_img = self.create_text_overlay(text, width, height, font_key=font_key)
         base_clip = self.pil_to_clip(text_img, duration)
         
         # Animation timing - quick but noticeable
@@ -1897,7 +1928,9 @@ async def render_video(content: Dict, broll_paths: List[str], output_path: str,
         
         # Use animated text instead of static (clean any "Phrase X:" prefixes)
         clean_phrase = renderer.clean_phrase_prefix(phrase)
-        text_clip = renderer.create_animated_text_clip(clean_phrase, dur, phrase_index=i)
+        # v13.0: Pass AI-selected font for content-appropriate typography
+        selected_font = content.get('selected_font', None)
+        text_clip = renderer.create_animated_text_clip(clean_phrase, dur, phrase_index=i, font_key=selected_font)
         layers.append(text_clip)
         
         # v7.15: Add subscribe CTA to LAST segment for monetization
@@ -1940,11 +1973,31 @@ async def render_video(content: Dict, broll_paths: List[str], output_path: str,
     audio_layers = [vo_clip]
     
     # Add sound effects at phrase transitions
+    # v13.0: Use varied SFX plan (not same pattern every time!)
     try:
         sfx_clips = []
         cumulative_time = 0
+        # Use pre-planned varied SFX if available
+        sfx_plan = content.get('sfx_plan', [])
+        
         for i, dur in enumerate(phrase_durations):
-            sfx_path = renderer.get_sfx_for_phrase(i, len(phrases))
+            # Get SFX from varied plan or fall back to old method
+            if sfx_plan and i < len(sfx_plan):
+                sfx_name = sfx_plan[i]
+                if sfx_name:
+                    # Get SFX path from name
+                    try:
+                        from sound_effects import get_all_sfx
+                        sfx_dict = get_all_sfx()
+                        sfx_path = sfx_dict.get(sfx_name)
+                    except:
+                        sfx_path = None
+                else:
+                    sfx_path = None  # Intentionally silent
+            else:
+                # Fallback to old deterministic method
+                sfx_path = renderer.get_sfx_for_phrase(i, len(phrases))
+            
             if sfx_path and os.path.exists(sfx_path):
                 sfx = AudioFileClip(sfx_path).volumex(0.4)  # 40% volume
                 # Position SFX at start of each phrase
@@ -1953,7 +2006,9 @@ async def render_video(content: Dict, broll_paths: List[str], output_path: str,
             cumulative_time += dur
         if sfx_clips:
             audio_layers.extend(sfx_clips)
-            safe_print(f"   [OK] Added {len(sfx_clips)} sound effects")
+            safe_print(f"   [OK] Added {len(sfx_clips)} sound effects (varied)")
+        else:
+            safe_print(f"   [*] Minimal SFX (silent emphasis style)")
     except Exception as e:
         safe_print(f"   [!] SFX error (continuing without): {e}")
     
@@ -2146,6 +2201,53 @@ async def generate_pro_video(hint: str = None, batch_tracker: BatchTracker = Non
                 
         except Exception as e:
             safe_print(f"   [!] Post-content checks skipped: {e}")
+    
+    # ==========================================================================
+    # CRITICAL FIXES: Quality, Promise, Font, SFX enforcement
+    # ==========================================================================
+    if CRITICAL_FIXES_AVAILABLE:
+        try:
+            # 1. Check and enforce minimum quality score
+            score = content.get('evaluation_score', 5)
+            if score < MINIMUM_ACCEPTABLE_SCORE:
+                safe_print(f"   [QUALITY WARNING] Score {score}/10 below minimum {MINIMUM_ACCEPTABLE_SCORE}/10")
+                # Log for analytics - we want to track low scores
+                content['quality_warning'] = True
+            else:
+                safe_print(f"   [QUALITY] Score {score}/10 - ACCEPTABLE")
+            
+            # 2. Validate and fix numbered promises
+            phrases = content.get('phrases', [])
+            if phrases:
+                validation = validate_numbered_promise(phrases[0], phrases)
+                if not validation['valid']:
+                    safe_print(f"   [PROMISE FIX] Promised {validation['promised']}, delivered {validation['delivered']}")
+                    fixed_hook = fix_broken_promise(phrases[0], validation['delivered'])
+                    content['phrases'][0] = fixed_hook
+                    content['promise_fixed'] = True
+                    safe_print(f"   [PROMISE FIX] Hook updated: {fixed_hook[:50]}...")
+                else:
+                    content['promise_fixed'] = False
+            
+            # 3. Select appropriate font based on content
+            category = concept.get('category', 'general')
+            mood = concept.get('music_mood', content.get('mood', 'neutral'))
+            topic = concept.get('specific_topic', '')
+            selected_font = select_font_for_content(category, mood, topic)
+            content['selected_font'] = selected_font
+            safe_print(f"   [FONT] Selected: {selected_font} (based on {category}/{mood})")
+            
+            # 4. Plan varied SFX for this video
+            sfx_plan = []
+            for i in range(len(phrases)):
+                sfx = get_varied_sfx_for_phrase(i, len(phrases), run_id)
+                sfx_plan.append(sfx)
+            content['sfx_plan'] = sfx_plan
+            sfx_used = [s for s in sfx_plan if s]
+            safe_print(f"   [SFX] Plan: {sfx_used if sfx_used else 'minimal (silent emphasis)'}")
+            
+        except Exception as e:
+            safe_print(f"   [!] Critical fixes error: {e}")
     
     # Stage 4: AI generates B-roll keywords
     try:

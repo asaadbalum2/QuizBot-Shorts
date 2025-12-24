@@ -252,6 +252,29 @@ def get_impact_font() -> str:
     return get_font_manager().get_impact_font()
 
 
+def get_font_by_key(font_key: str) -> Optional[str]:
+    """
+    Get a specific font by its key name.
+    This is used by the AI-selected font system.
+    
+    Args:
+        font_key: One of the keys from FREE_FONTS (e.g., "bebas-neue", "poppins-bold")
+    
+    Returns:
+        Path to the font file, or None if download fails
+    """
+    manager = get_font_manager()
+    
+    # Check if already cached
+    if font_key in manager.cached_fonts:
+        font_path = manager.cached_fonts[font_key]
+        if os.path.exists(font_path):
+            return font_path
+    
+    # Try to download
+    return manager.download_font(font_key)
+
+
 if __name__ == "__main__":
     print("Testing Dynamic Font Manager...")
     
