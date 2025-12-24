@@ -457,13 +457,17 @@ class MasterAI:
     100% AI-Driven Content System with ENFORCED VARIETY
     
     Uses BatchTracker to ensure no repetition in category/topic/voice/music.
+    Multi-provider fallback: Groq -> Gemini -> OpenRouter
     """
     
     def __init__(self):
         self.groq_key = os.environ.get("GROQ_API_KEY")
         self.gemini_key = os.environ.get("GEMINI_API_KEY")
+        # v13.5: OpenRouter as third fallback (free tier)
+        self.openrouter_key = os.environ.get("OPENROUTER_API_KEY", "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")
         self.client = None
         self.gemini_model = None
+        self.openrouter_available = bool(self.openrouter_key)
         
         if self.groq_key:
             try:
@@ -484,6 +488,9 @@ class MasterAI:
                 except:
                     self.gemini_model = genai.GenerativeModel('gemini-2.0-flash')
                     safe_print("[OK] Gemini AI initialized (2.0-flash)")
+        
+        if self.openrouter_available:
+            safe_print("[OK] OpenRouter AI initialized (fallback)")
             except Exception as e:
                 safe_print(f"[!] Gemini init failed: {e}")
     
@@ -593,6 +600,33 @@ class MasterAI:
                 safe_print(f"[!] Gemini 1.5-pro not available either")
             else:
                 safe_print(f"[!] Gemini Pro fallback error: {e}")
+        
+        # v13.5: Quinary - OpenRouter as final fallback (free tier models)
+        if self.openrouter_available:
+            try:
+                import requests
+                response = requests.post(
+                    "https://openrouter.ai/api/v1/chat/completions",
+                    headers={
+                        "Authorization": f"Bearer {self.openrouter_key}",
+                        "HTTP-Referer": "https://github.com/viralshorts-factory",
+                        "X-Title": "ViralShorts Factory"
+                    },
+                    json={
+                        "model": "meta-llama/llama-3.2-3b-instruct:free",  # Free model
+                        "messages": [{"role": "user", "content": prompt}],
+                        "max_tokens": max_tokens,
+                        "temperature": temperature
+                    },
+                    timeout=60
+                )
+                if response.status_code == 200:
+                    result = response.json()
+                    return result.get("choices", [{}])[0].get("message", {}).get("content", "")
+                else:
+                    safe_print(f"[!] OpenRouter error: {response.status_code}")
+            except Exception as e:
+                safe_print(f"[!] OpenRouter fallback error: {e}")
         
         return ""
     
