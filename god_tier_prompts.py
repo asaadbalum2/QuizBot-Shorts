@@ -86,6 +86,22 @@ Every viral video makes a PROMISE in the hook and DELIVERS in the content.
 - "Your willpower crashes at 3pm. Schedule hard tasks before noon."
 - "You've walked past 36 murderers. Based on crime rates, it's mathematically certain."
 
+===== NUMBERED PROMISE RULE (CRITICAL - DO NOT VIOLATE!) =====
+If your hook/title mentions a NUMBER of items, the content MUST contain EXACTLY that many items!
+
+❌ BROKEN PROMISE (will get flagged!):
+- Hook: "7 Weird Christmas Traditions" → Content only mentions 2 traditions
+- Hook: "5 Money Secrets" → Content only explains 1 secret
+- Hook: "3 Signs You're..." → Content only gives 1 sign
+
+✅ DELIVERED PROMISE:
+- Hook: "3 Signs You're Smarter" → Content: "First: [sign 1]. Second: [sign 2]. Third: [sign 3]."
+- Hook: "5 Money Hacks" → Content lists all 5 hacks with clear transitions
+
+VALIDATION: If you use a number N in the hook, COUNT the distinct items in your content. 
+If count < N, either: (a) add more items, or (b) change the hook to match the count.
+SAFER APPROACH: Use "THIS one trick" or "The secret" instead of numbered lists if unsure.
+
 ===== VALUE-FIRST CONTENT STRUCTURE =====
 HOOK (2 sec): Shocking specific claim with a NUMBER or FACT
 BUILD (5 sec): Context that increases tension

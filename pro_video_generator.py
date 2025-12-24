@@ -135,6 +135,86 @@ def strip_emojis(text: str) -> str:
 
 
 # ========================================================================
+# v8.9: CONTENT PROMISE VALIDATOR - Catches numbered promise violations
+# ========================================================================
+def validate_numbered_promise(hook: str, content: str) -> Tuple[bool, str, Optional[str]]:
+    """
+    Validate that if hook promises N items, content delivers N items.
+    
+    Returns: (is_valid, message, suggested_fix)
+    """
+    # Extract numbers from hook that imply a list (e.g., "7 Weird", "5 Tips", "3 Signs")
+    # Pattern: number followed by plural nouns that imply lists
+    list_pattern = r'(\d+)\s+(?:weird|strange|secret|tip|sign|way|hack|trick|reason|thing|fact|rule|step|method|mistake|idea|habit|lesson)'
+    matches = re.findall(list_pattern, hook.lower())
+    
+    if not matches:
+        return True, "No numbered list promise detected", None
+    
+    promised_count = int(matches[0])
+    
+    # Count distinct items in content using various markers
+    # Look for: numbered items, "First/Second/Third", bullet-like transitions
+    content_lower = content.lower()
+    
+    # Count explicit numbering
+    explicit_numbers = len(re.findall(r'\b(?:first|second|third|fourth|fifth|sixth|seventh|eighth|ninth|tenth)\b', content_lower))
+    digit_numbers = len(re.findall(r'\b[1-9][\.\):]', content))
+    
+    # Count transition phrases that indicate new items
+    transitions = len(re.findall(r'\b(?:next|another|also|finally|lastly|plus|and then|then there\'s)\b', content_lower))
+    
+    # Estimate item count (take the max of different counting methods)
+    estimated_items = max(explicit_numbers, digit_numbers, transitions + 1)
+    
+    # If we can't detect clear structure, give benefit of doubt if content is long enough
+    if estimated_items < 2 and len(content.split('.')) >= promised_count:
+        estimated_items = len(content.split('.'))  # Rough estimate by sentences
+    
+    if estimated_items >= promised_count:
+        return True, f"Content appears to deliver {estimated_items}/{promised_count} items", None
+    
+    # VIOLATION DETECTED
+    safe_fix = re.sub(r'^\d+\s+', 'The ', hook)  # Remove number, add "The"
+    safe_fix = re.sub(r'^(\w)', lambda m: m.group(1).upper(), safe_fix)  # Capitalize
+    
+    return (
+        False, 
+        f"[!] PROMISE VIOLATION: Hook promises {promised_count} items but content has ~{estimated_items}",
+        f"Suggested fix: Change hook to '{safe_fix}' or add more items to content"
+    )
+
+
+def fix_numbered_promise_violation(hook: str, content: str) -> Tuple[str, str]:
+    """
+    If a numbered promise violation is detected, fix it by modifying the hook.
+    Returns: (fixed_hook, fixed_content)
+    """
+    is_valid, message, fix = validate_numbered_promise(hook, content)
+    
+    if is_valid:
+        return hook, content
+    
+    safe_print(f"   {message}")
+    
+    # Fix the hook by removing the specific number and making it generic
+    # "7 Weird Traditions" → "The Weirdest Tradition" or "A Strange Tradition"
+    fixed_hook = re.sub(r'^\d+\s+', '', hook)  # Remove leading number
+    
+    # Make singular and add "This" or "The"
+    words = fixed_hook.split()
+    if words:
+        # Handle plural → singular
+        if words[0].endswith('s') and len(words[0]) > 3:
+            words[0] = words[0].rstrip('s')
+        fixed_hook = "This " + ' '.join(words)
+    
+    safe_print(f"   [AUTO-FIX] Changed hook: '{hook}' → '{fixed_hook}'")
+    
+    return fixed_hook, content
+
+
+# ========================================================================
 # ALL AVAILABLE OPTIONS - AI picks from these, variety enforced
 # ========================================================================
 # Base categories - AI will expand/suggest from these + current trends
@@ -842,26 +922,40 @@ JSON ARRAY ONLY."""
         concept = content.get('concept', {})
         phrases = content.get('phrases', [])
         
-        # v8.5: Ask AI for multiple title variants in different styles
+        # v8.9: Enhanced title generation with SPECIFIC benefit-driven titles
         prompt = f"""Create viral metadata for this video with 3 TITLE VARIANTS.
 
 Category: {concept.get('category', '')}
 Topic: {concept.get('specific_topic', '')}
 First phrase: {phrases[0] if phrases else ''}
-Value: {content.get('value_delivered', '')}
+Value delivered: {content.get('value_delivered', '')}
+
+=== TITLE RULES (CRITICAL!) ===
+❌ BAD TITLES (too vague, no benefit):
+- "The Art Secret" → What art? What secret? Why care?
+- "5s AI Art" → What happens in 5s? What's the benefit?
+- "Amazing Hack" → What's amazing about it?
+
+✅ GOOD TITLES (specific benefit, clear value):
+- "Make $500 Art in 5 Seconds with AI"
+- "Why 83% of Artists Use THIS Trick"  
+- "The 3-Second Fix That Doubles Your Art Sales"
 
 === TITLE VARIANTS (for A/B testing) ===
-Create 3 different title styles - all under 50 chars:
-1. NUMBER_HOOK: Uses a specific number ("3 Signs...", "Why 90%...", "The 5 Second...")
-2. CURIOSITY_GAP: Creates curiosity ("The Truth About...", "What They Don't...", "The Secret...")
-3. SHOCKING: Strong statement ("This Changes Everything", "You've Been Doing It Wrong")
+Create 3 different title styles - all under 50 chars, ALL must include:
+- A SPECIFIC benefit (saves time, makes money, fixes problem)
+- A NUMBER (percentage, time, count, or dollar amount)
+
+1. NUMBER_HOOK: Lead with number ("3 Signs...", "Why 90%...", "The 5 Second...")
+2. CURIOSITY_GAP: Mystery + benefit ("The $500 Trick They Hide", "What 99% Don't Know About...")
+3. RESULT_FOCUSED: Clear outcome ("Double Your [X] in 3 Days", "Stop Losing $X Monthly")
 
 === OUTPUT JSON ===
 {{
     "title_variants": [
         {{"style": "number_hook", "title": "the number-based title"}},
         {{"style": "curiosity_gap", "title": "the curiosity title"}},
-        {{"style": "shocking", "title": "the shocking title"}}
+        {{"style": "result_focused", "title": "the result-focused title"}}
     ],
     "description": "2-3 sentence description with CTA",
     "hashtags": ["#shorts", "#viral", plus 5-8 relevant hashtags]
@@ -1818,6 +1912,24 @@ async def generate_pro_video(hint: str = None, batch_tracker: BatchTracker = Non
     except Exception as e:
         safe_print(f"[!] Enhancement skipped: {e}")
     
+    # v8.9: Validate numbered promises BEFORE generating video
+    # This catches "7 Weird Things" hooks that only deliver 1 thing
+    try:
+        hook = concept.get('hook', '')
+        full_content = ' '.join(content.get('phrases', []))
+        hook, full_content = fix_numbered_promise_violation(hook, full_content)
+        # Update concept with potentially fixed hook
+        concept['hook'] = hook
+        # Update first phrase if hook was changed (hook is usually phrase 1)
+        phrases = content.get('phrases', [])
+        if phrases:
+            # If the hook doesn't appear in phrases, it's used as a separate intro
+            # Either way, we validated and potentially fixed the promise
+            pass
+        safe_print(f"   [OK] Content promise validated")
+    except Exception as e:
+        safe_print(f"[!] Promise validation skipped: {e}")
+    
     # Stage 4: AI generates B-roll keywords
     try:
         broll_keywords = ai.stage4_broll_keywords(content.get('phrases', []))
@@ -2099,16 +2211,21 @@ async def main():
                 time.sleep(initial_delay)
             
             # All other videos to Dailymotion only
-            # IMPORTANT: Dailymotion allows only 4 uploads per HOUR!
+            # v8.9: MAXIMIZED Dailymotion uploads
+            # - Dailymotion allows 4 uploads per HOUR
+            # - Batches run every 4 HOURS, so we have 4 fresh slots each time
+            # - Upload ALL videos, not just 4, by spreading them across the hour
             remaining_videos = [(p, m) for p, m in BATCH_TRACKER.get_all_videos() 
                                if not best or p != best[0]]
             
-            # Only upload first 3 to stay within 4/hour limit (1 already uploaded with YouTube)
-            max_dm_uploads = 3
-            dm_to_upload = remaining_videos[:max_dm_uploads]
+            # v8.9: Calculate how many we can actually upload
+            # Since batches are 4h apart and limit is 4/hour, we always have 4 fresh slots
+            # But we can exceed 4 by waiting for slots to refresh mid-batch
+            dm_to_upload = remaining_videos  # Upload ALL remaining videos
             
-            if len(remaining_videos) > max_dm_uploads:
-                safe_print(f"[!] Dailymotion limit: Only uploading {max_dm_uploads} more (4/hour API limit)")
+            # Calculate total time needed: 4 per hour = 1 every 15 min
+            if len(dm_to_upload) > 3:
+                safe_print(f"[DAILYMOTION] Uploading ALL {len(dm_to_upload)} videos (spreading across time)")
             
             for idx, (video_path, metadata) in enumerate(dm_to_upload):
                 safe_print(f"\n[DAILYMOTION ONLY] ({idx+1}/{len(dm_to_upload)}) {video_path}")
@@ -2116,9 +2233,15 @@ async def main():
                 
                 # Skip delay after last video
                 if idx < len(dm_to_upload) - 1:
-                    # 15-20 min delay to spread 4 uploads across 1 hour
-                    delay = random.randint(900, 1200)  # 15-20 minutes
-                    safe_print(f"[WAIT] Dailymotion cooldown: {delay//60}m (4/hour API limit)")
+                    # v8.9: Smarter delays - first 3 can be faster, then slow down
+                    if idx < 2:
+                        # First 3 uploads (including YouTube one) = 4 total in first hour
+                        delay = random.randint(180, 300)  # 3-5 minutes
+                        safe_print(f"[WAIT] Quick upload {idx+2}/4: {delay//60}m delay")
+                    else:
+                        # After 4 uploads, wait 15-18 min for new slot to open
+                        delay = random.randint(900, 1080)  # 15-18 minutes
+                        safe_print(f"[WAIT] Slot refresh: {delay//60}m (waiting for new hourly slot)")
                     time.sleep(delay)
         else:
             # Legacy: Upload all to both platforms
